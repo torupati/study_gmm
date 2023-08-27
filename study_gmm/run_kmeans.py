@@ -4,8 +4,6 @@ from numpy import ndarray, random, uint8 # definition, modules
 from numpy import array, argmin, dot, ones, zeros, cov, savez # functions
 from math import floor
 
-Dim = 2
-
 random.seed(1)
 N = 300
 #X_range0 = [-3, 3]
@@ -210,6 +208,8 @@ for it in range(0, max_it): # K-means 法
     #ax.set_yticks(range(X_range1[0], X_range1[1]), "")
     print(f'iteration={it} distortion={loss}')
     mu = kmeans_update_centroid(X, R)
+    loss = distortion_measure(X, R, mu)
+    cost_history.append(loss)
 fig0.savefig("iteration.png")
 
 print("simultion mean:", np.round(KmeansParam.get("Mu"), 5))
@@ -229,8 +229,4 @@ ax.grid(True)
 ax.set_xlabel("Iteration Step")
 ax.set_ylabel("Distortion")
 fig1.savefig("distortion.png")
-try:
-    plt.show(block=False)
-except Exception as e:
-    print(e)
 
