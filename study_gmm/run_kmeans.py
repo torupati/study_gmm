@@ -1,3 +1,6 @@
+"""
+
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import ndarray, random, uint8 # definition, modules
@@ -6,8 +9,6 @@ from math import floor
 
 random.seed(1)
 N = 300
-#X_range0 = [-3, 3]
-#X_range1 = [-3, 3]
 KmeansParam = {\
     "Mu": array([[-0.5, -0.5], [0.5, 1.0], [1.0, -0.5]]),  # 分布の中心(K, D)
     "Sig": array([[.7, .7], [.8, .3], [.3, .8]])  # 分布の分散(K, D)
@@ -20,7 +21,15 @@ KmeansParam = {\
 }
 
 class KmeansCluster():
-    def __init__(self, K, D):
+    """Definition of clusters for K-means altorithm
+    """
+    def __init__(self, K:int, D:int):
+        """_summary_
+
+        Args:
+            K (int): number of cluster
+            D (int): dimension of smaples
+        """
         self._K = K
         self._D = D
         self.Mu = np.random.randn(K, D) #centroid
@@ -29,6 +38,11 @@ class KmeansCluster():
 
     @property
     def K(self) -> int:
+        """Number of clusters
+
+        Returns:
+            int: _description_
+        """
         return self._K
 
     @property
@@ -39,12 +53,67 @@ class KmeansCluster():
         assert k < self._K
         assert len(val) == self._D
         self.Mu[k,:] = val
-#X_col = ['cornflowerblue', "orange", 'black', 'white', 'red']
-#K = KmeansParam["Mu"].shape[0]
-#assert(KmeansParam.get("Mu").shape == (K, Dim))
-#assert(KmeansParam.get("Sig").shape == (K, Dim))
-#assert(len(X_col) == K)
 
+    def distortion_measure(self, x:ndarray, r:ndarray) -> float:
+        """
+        Calculate distortion measure.
+
+        Args
+        ----
+        x, training samples(N,D)
+        r, alignment of sample(N, K)
+        """
+        J = 0.0
+        n_sample = x.shape[0]
+        if n_sample == 0:
+            return 0.0
+        for n in range(n_sample):
+            dist = [sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)]
+            J = J + dot(r[n, :], dist)
+        #   J = J + r[n, k] * ((x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2)
+        return J/n_sample
+
+    def get_alignment(self, x:ndarray) -> ndarray:
+        """
+        Args
+        ----
+        x[N, D]: samples
+        mu[K, D]: centroids
+        """
+        if len(x.shape) != 2:
+            raise Exception("dimension error")
+        N, D = x.shape
+        r = np.zeros((N, K))
+        for n in range(N):
+            r[n, argmin([ sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(K)])] = 1
+            print(r[n,:].sum())
+            #wk = [(x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2 for k in range(K)]
+            #r[n, argmin(wk)] = 1
+        return r
+
+    def get_centroid(self, x:ndarray, r:ndarray) -> ndarray:
+        """_summary_
+
+        Args:
+            x (ndarray): input samples (N,D)
+            r (ndarray): sample alignment to clusters (N,K)
+
+        Returns:
+            ndarray: updated centroid(K,D)
+        """
+    #mu = np.zeros((K, x.shape[1])) # (K, D)
+    #for k in range(K):
+    #    mu[k, 0] = np.sum(r[:, k] * x[:, 0]) / np.sum(r[:, k])
+    #    mu[k, 1] = np.sum(r[:, k] * x[:, 1]) / np.sum(r[:, k])
+        _mu = dot(r.transpose(), x)
+        for k in range(K):
+            if sum(r[:,k]) < 0.01:
+                # this cluster has no sample aligned.
+                continue
+            _mu[k,:] = _mu[k,:] / sum(r[:,k])
+        return _mu
+
+#X_col = ['cornflowerblue', "orange", 'black', 'white', 'red']
 
 def generate_samples(n_sample: int, kmeans_param) -> ndarray:
     """
@@ -95,62 +164,6 @@ fig0, ax0 = plt.subplots(1,1, figsize=(8,8))
 plot_training_samples(ax0, X)
 fig0.savefig("samples.png")
 
-def kmeans_update_alignment(x:ndarray, mu:ndarray) -> ndarray:
-    """
-    parameters
-    ----------
-    x[N, D]: samples
-    mu[K, D]: centroids
-    """
-    if len(x.shape) != 2:
-        raise Exception("dimension error")
-    N, D = x.shape
-    r = np.zeros((N, K))
-    for n in range(N):
-        r[n, argmin([ sum(v*v for v in x[n, :] - mu[k, :]) for k in range(K)])] = 1
-        #wk = [(x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2 for k in range(K)]
-        #r[n, argmin(wk)] = 1
-    return r
-
-
-def kmeans_update_centroid(x:ndarray, r:ndarray) -> ndarray:
-    """
-    各クラスタの平均値を求める
-    Parameters
-    ----------
-    x, training data (N, D)
-    r, alignment information(K, D)
-    """
-    #mu = np.zeros((K, x.shape[1])) # (K, D)
-    #for k in range(K):
-    #    mu[k, 0] = np.sum(r[:, k] * x[:, 0]) / np.sum(r[:, k])
-    #    mu[k, 1] = np.sum(r[:, k] * x[:, 1]) / np.sum(r[:, k])
-    mu = dot(r.transpose(), x)
-    for k in range(K):
-        if sum(r[:,k]) < 0.01:
-            continue
-        mu[k,:] = mu[k,:] / sum(r[:,k])
-    return mu
-
-
-def distortion_measure(x:ndarray, r:ndarray, mu:ndarray) -> float:
-    """
-    Calculate distortion measure
-    Parameters
-    ----------
-    x, training samples(N,D)
-    r, alignment of sample(N, K)
-    mu, cluster centroid(K, D)
-    """
-    J = 0.0
-    for n in range(x.shape[0]):
-        dist = [sum(v*v for v in x[n, :] - mu[k, :]) for k in range(K)]
-        J = J + dot(r[n, :], dist)
-    #J = 0
-    #for n in range(x.shape[0]):
-        #for k in range(K):
-        #   J = J + r[n, k] * ((x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2)
-    return J
 
 # データの図示関数 ---------------------------
 def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
@@ -188,37 +201,34 @@ Dim = kmeansparam.D
 #mu_init = X.mean(0) + ndarray(K, Dim), cov(X.T))
 mu_init = random.randn(K, Dim)
 
-mu = mu_init
-print("mu=", mu)
+kmeansparam.Mu = mu_init
 max_it = 10
 cost_history = []
 fig0, axes0 = plt.subplots(1, 4, figsize=(8, 16))
-for it in range(0, max_it): # K-means 法
-    R = kmeans_update_alignment(X, mu)
-    loss = distortion_measure(X, R, mu)
+for it in range(0, max_it):
+    R = kmeansparam.get_alignment(X) # alignment to all sample to all clusters
+    loss = kmeansparam.distortion_measure(X, R)
     cost_history.append(loss)
     if it < (2*2):
         print(int(floor(it/2)), it%2)
         ax =axes0[it]
         #ax =axes0[floor(it/2), it%2]
         #show_prm(ax, X, R, mu, X_col, KmeansParam)
-        show_prm(ax, X, R, mu)
+        show_prm(ax, X, R, kmeansparam.Mu)
         ax.set_title("iteration {0:d}".format(it + 1))
     #ax.set_xticks(range(X_range0[0], X_range0[1]), "")
     #ax.set_yticks(range(X_range1[0], X_range1[1]), "")
     print(f'iteration={it} distortion={loss}')
-    mu = kmeans_update_centroid(X, R)
-    loss = distortion_measure(X, R, mu)
+    kmeansparam.Mu = kmeansparam.get_centroid(X, R)
+    loss = kmeansparam.distortion_measure(X, R)
     cost_history.append(loss)
 fig0.savefig("iteration.png")
 
-print("simultion mean:", np.round(KmeansParam.get("Mu"), 5))
-print("centroid:", np.round(mu, 5)),
+#print("simultion mean:", np.round(KmeansParam.get("Mu"), 5))
+print("centroid:", np.round(kmeansparam.Mu, 5)),
 
 print("Training")
-#print(np.round(DM, 5))
-#print(distortion_measure(X, kmeans_update_alignment(X, KmeansParam.get("Mu")), KmeansParam.get("Mu")))
-print(distortion_measure(X, kmeans_update_alignment(X, kmeansparam.Mu), kmeansparam.Mu))
+print(kmeansparam.distortion_measure(X, kmeansparam.get_alignment(X)))
 
 fig1, ax = plt.subplots(1, 1, figsize=(8,4))
 ax.plot(range(0, len(cost_history)), cost_history, color='black', linestyle='-', marker='o')
