@@ -213,12 +213,12 @@ def main():
     fig0, axes0 = plt.subplots(1, 4, figsize=(16, 4))
     for it in range(0, max_it):
         R_new = kmeansparam.get_alignment(X) # alignment to all sample to all clusters
-        if it > 2:
-            num_updated = int((R_new - R).sum())
-            print('num_updated = ', R_new - R)
+        #if it > 2:
+        #    num_updated = (R_new - R) == np.zeros([N,K])
+        #    print('num_updated = ', num_updated)
             #if num_updated == 0:
             #    break
-        print(R_new)
+        #print(R_new)
         R = R_new
         loss = kmeansparam.distortion_measure(X, R)
         cost_history.append(loss)
@@ -240,6 +240,8 @@ def main():
                     'iteration': it,
                     'alignment': R}, f)
             print(ckpt_file)
+        # convergence check must be done
+
     fig0.savefig("iteration.png")
 
     print("centroid:", np.round(kmeansparam.Mu, 5)),
