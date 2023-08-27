@@ -1,24 +1,12 @@
 """
-
+K-means clustering
 """
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import ndarray, random, uint8 # definition, modules
 from numpy import array, argmin, dot, ones, zeros, cov, savez # functions
 from math import floor
-
-random.seed(1)
-N = 300
-KmeansParam = {\
-    "Mu": array([[-0.5, -0.5], [0.5, 1.0], [1.0, -0.5]]),  # 分布の中心(K, D)
-    "Sig": array([[.7, .7], [.8, .3], [.3, .8]])  # 分布の分散(K, D)
-}
-Pi = array([0.4, 0.8, 1])  # 累積確率
-
-KmeansParam = {\
-    "Mu": array([[3.0, 3.0], [0.0, 2.0], [2.0, -3.5], [-3.0, 0.0]]),  # 分布の中心(K, D)
-    "Sig": array([[1.0, 1.0], [0.3, 0.1], [0.6, 0.5], [1.0, 0.5]])  # 分布の分散(K, D)
-}
+import pickle
 
 class KmeansCluster():
     """Definition of clusters for K-means altorithm
@@ -82,11 +70,11 @@ class KmeansCluster():
         """
         if len(x.shape) != 2:
             raise Exception("dimension error")
-        N, D = x.shape
-        r = np.zeros((N, K))
+        N = x.shape[0]
+        r = np.zeros((N, self._K))
         for n in range(N):
-            r[n, argmin([ sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(K)])] = 1
-            print(r[n,:].sum())
+            r[n, argmin([ sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)])] = 1
+            r[n, :] = r[n,:]/r[n,:].sum()
             #wk = [(x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2 for k in range(K)]
             #r[n, argmin(wk)] = 1
         return r
@@ -106,7 +94,7 @@ class KmeansCluster():
     #    mu[k, 0] = np.sum(r[:, k] * x[:, 0]) / np.sum(r[:, k])
     #    mu[k, 1] = np.sum(r[:, k] * x[:, 1]) / np.sum(r[:, k])
         _mu = dot(r.transpose(), x)
-        for k in range(K):
+        for k in range(self._K):
             if sum(r[:,k]) < 0.01:
                 # this cluster has no sample aligned.
                 continue
@@ -135,20 +123,9 @@ def generate_samples(n_sample: int, kmeans_param) -> ndarray:
         k += 1
     return X
 
-
-kmeansparam = KmeansCluster(6, 20)
-X = generate_samples(N, kmeansparam)
-
-#X = generate_samples(N, Dim, Pi, KmeansParam.get("Mu"), KmeansParam.get("Sig"))
-X_range_x1 = [min(X[:,0]), max(X[:,0])]
-X_range_x2 = [min(X[:,1]), max(X[:,1])]
-
-npz_file = f"new_sample_data_D{kmeansparam.D}_K{kmeansparam.K}.npz"
-np.savez(npz_file, X=X, ModelParam = KmeansParam)
-print('save data in file: ', npz_file)
-#savez("sampledata.npz", X=X, ModelParam = KmeansParam)
-
 def plot_training_samples(ax, x):
+    X_range_x1 = [min(x[:,0]), max(x[:,0])]
+    X_range_x2 = [min(x[:,1]), max(x[:,1])]
     ax.plot(x[:, 0], x[:, 1], marker='.',
                 #markerfacecolor=X_col[k],
                 markeredgecolor='k',
@@ -160,13 +137,8 @@ def plot_training_samples(ax, x):
     ax.set_ylabel("$x_2$")
     ax.set_aspect("equal")
 
-fig0, ax0 = plt.subplots(1,1, figsize=(8,8))
-plot_training_samples(ax0, X)
-fig0.savefig("samples.png")
-
-
-# データの図示関数 ---------------------------
 def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
+    K = mu.shape[0]
     for k in range(K):
         # データ分布の描写
         ax.plot(x[r[:, k] == 1, 0], x[r[:, k] == 1, 1],
@@ -185,58 +157,104 @@ def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
                 #markerfacecolor=X_col[k],
                 markersize=10,
                 markeredgecolor='k', markeredgewidth=1)
+    X_range_x1 = [min(x[:,0]), max(x[:,0])]
+    X_range_x2 = [min(x[:,1]), max(x[:,1])]
     ax.set_xlim(X_range_x1)
     ax.set_ylim(X_range_x2)
     ax.grid(True)
     ax.set_aspect("equal")
 
-K = kmeansparam.K
-Dim = kmeansparam.D
 
-# Mu と R の初期化
-#mu_init = np.array([[-2, 1], [-2, 0], [-2, -1]])
-#mu_init = np.array([[0, 1], [0, 0], [1, 0]])
-#mu_init = np.array([[2, 0], [0, 0], [1, 0]])
-#mu_init = ndarray( (kmeansparam.K, kmeansparam.D)) * 0.5
-#mu_init = X.mean(0) + ndarray(K, Dim), cov(X.T))
-mu_init = random.randn(K, Dim)
+def generate_sample_kmeans_cluster():
+    K, D = 4, 2
+    param = KmeansCluster(K, D)
 
-kmeansparam.Mu = mu_init
-max_it = 10
-cost_history = []
-fig0, axes0 = plt.subplots(1, 4, figsize=(8, 16))
-for it in range(0, max_it):
-    R = kmeansparam.get_alignment(X) # alignment to all sample to all clusters
-    loss = kmeansparam.distortion_measure(X, R)
-    cost_history.append(loss)
-    if it < (2*2):
-        print(int(floor(it/2)), it%2)
-        ax =axes0[it]
-        #ax =axes0[floor(it/2), it%2]
-        #show_prm(ax, X, R, mu, X_col, KmeansParam)
-        show_prm(ax, X, R, kmeansparam.Mu)
-        ax.set_title("iteration {0:d}".format(it + 1))
-    #ax.set_xticks(range(X_range0[0], X_range0[1]), "")
-    #ax.set_yticks(range(X_range1[0], X_range1[1]), "")
-    print(f'iteration={it} distortion={loss}')
-    kmeansparam.Mu = kmeansparam.get_centroid(X, R)
-    loss = kmeansparam.distortion_measure(X, R)
-    cost_history.append(loss)
-fig0.savefig("iteration.png")
+    #param.Mu = np.array([[-0.5, -0.5], [0.5, 1.0], [1.0, -0.5]])
+    #param.Sig = array([[.7, .7], [.8, .3], [.3, .8]])
+    #param.Pi = array([0.4, 0.8, 1])
 
-#print("simultion mean:", np.round(KmeansParam.get("Mu"), 5))
-print("centroid:", np.round(kmeansparam.Mu, 5)),
+    param.Mu = array([[3.0, 3.0], [0.0, 2.0], [2.0, -3.5], [-3.0, 0.0]])
+    param.Sig = array([[1.0, 1.0], [0.3, 0.1], [0.6, 0.5], [1.0, 0.5]])
+    param.Pi = array([1/K]*K)
+    return param
 
-print("Training")
-print(kmeansparam.distortion_measure(X, kmeansparam.get_alignment(X)))
 
-fig1, ax = plt.subplots(1, 1, figsize=(8,4))
-ax.plot(range(0, len(cost_history)), cost_history, color='black', linestyle='-', marker='o')
-#ax.set_ylim(40, 80)
-ax.set_yscale("log")
-ax.set_xlim([0,len(cost_history)])
-ax.grid(True)
-ax.set_xlabel("Iteration Step")
-ax.set_ylabel("Distortion")
-fig1.savefig("distortion.png")
+def main():
+
+    random.seed(1)
+    N = 300
+
+    #kmeansparam = KmeansCluster(6, 20)
+    kmeansparam_true = generate_sample_kmeans_cluster()
+    X = generate_samples(N, kmeansparam_true)
+    K = kmeansparam_true.K
+    Dim = kmeansparam_true.D
+
+    fig0, ax0 = plt.subplots(1,1, figsize=(8,8))
+    plot_training_samples(ax0, X)
+    fig0.savefig("samples.png")
+
+
+    X_range_x1 = [min(X[:,0]), max(X[:,0])]
+    X_range_x2 = [min(X[:,1]), max(X[:,1])]
+
+    npz_file = f"new_sample_data_D{kmeansparam_true.D}_K{kmeansparam_true.K}.npz"
+    np.savez(npz_file, X=X, ModelParam = kmeansparam_true)
+    print('save data in file: ', npz_file)
+
+
+    # Mu と R の初期化
+    mu_init = random.randn(K+1, Dim)
+    kmeansparam = KmeansCluster(K+1, Dim)
+    kmeansparam.Mu = mu_init
+    max_it = 10
+    R = None
+    cost_history = []
+    fig0, axes0 = plt.subplots(1, 4, figsize=(16, 4))
+    for it in range(0, max_it):
+        R_new = kmeansparam.get_alignment(X) # alignment to all sample to all clusters
+        if it > 2:
+            num_updated = int((R_new - R).sum())
+            print('num_updated = ', R_new - R)
+            #if num_updated == 0:
+            #    break
+        print(R_new)
+        R = R_new
+        loss = kmeansparam.distortion_measure(X, R)
+        cost_history.append(loss)
+        if it < (2*2):
+            print(int(floor(it/2)), it%2)
+            ax =axes0[it]
+            #ax =axes0[floor(it/2), it%2]
+            #show_prm(ax, X, R, mu, X_col, KmeansParam)
+            show_prm(ax, X, R, kmeansparam.Mu)
+            ax.set_title("iteration {0:d}".format(it + 1))
+        print(f'iteration={it} distortion={loss}')
+        kmeansparam.Mu = kmeansparam.get_centroid(X, R)
+        loss = kmeansparam.distortion_measure(X, R)
+        cost_history.append(loss)
+        ckpt_file = f"kmeans_itr{it}.ckpt"
+        with open(ckpt_file, 'wb') as f:
+            pickle.dump({'model': kmeansparam,
+                    'loss': loss,
+                    'iteration': it,
+                    'alignment': R}, f)
+            print(ckpt_file)
+    fig0.savefig("iteration.png")
+
+    print("centroid:", np.round(kmeansparam.Mu, 5)),
+
+    print(kmeansparam.distortion_measure(X, kmeansparam.get_alignment(X)))
+
+    fig1, ax = plt.subplots(1, 1, figsize=(8,4))
+    ax.plot(range(0, len(cost_history)), cost_history, color='black', linestyle='-', marker='o')
+    ax.set_yscale("log")
+    ax.set_xlim([0,len(cost_history)])
+    ax.grid(True)
+    ax.set_xlabel("Iteration Step")
+    ax.set_ylabel("Loss")
+    fig1.savefig("distortion.png")
+
+if __name__ == '__main__':
+    main()
 
