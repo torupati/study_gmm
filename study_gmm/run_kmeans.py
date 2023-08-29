@@ -7,6 +7,7 @@ from numpy import ndarray, random, uint8 # definition, modules
 from numpy import array, argmin, dot, ones, zeros, cov, savez # functions
 from math import floor
 import pickle
+import argparse
 
 class KmeansCluster():
     """Definition of clusters for K-means altorithm
@@ -35,6 +36,11 @@ class KmeansCluster():
 
     @property
     def D(self) -> int:
+        """Dimension of input data
+
+        Returns:
+            int: dimension of input data
+        """
         return self._D
 
     def update_Mu(self, k, val):
@@ -80,7 +86,7 @@ class KmeansCluster():
         return r
 
     def get_centroid(self, x:ndarray, r:ndarray) -> ndarray:
-        """_summary_
+        """Calculate centroid from given alignment
 
         Args:
             x (ndarray): input samples (N,D)
@@ -103,25 +109,6 @@ class KmeansCluster():
 
 #X_col = ['cornflowerblue', "orange", 'black', 'white', 'red']
 
-def generate_samples(n_sample: int, kmeans_param) -> ndarray:
-    """
-    シミュレーション用のデータを作成する.
-    Parameters
-    ----------
-    num, サンプル数
-    dim, 特徴量の次元
-    """
-    X = np.zeros((n_sample, kmeans_param.D))
-    counts = np.random.multinomial(n_sample, kmeans_param.Pi)
-    i = 0
-    k = 0
-    while i < n_sample:
-        for j in range(counts[k]):
-            X[i+j,:] = kmeans_param.Mu[k,:] \
-                + np.dot(np.diag(kmeans_param.Sig[k,:]), random.randn(kmeans_param.D))
-        i += counts[k]
-        k += 1
-    return X
 
 def plot_training_samples(ax, x):
     X_range_x1 = [min(x[:,0]), max(x[:,0])]
@@ -179,35 +166,12 @@ def generate_sample_kmeans_cluster():
     return param
 
 
-def main():
+def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
 
-    random.seed(1)
-    N = 300
-
-    #kmeansparam = KmeansCluster(6, 20)
-    kmeansparam_true = generate_sample_kmeans_cluster()
-    X = generate_samples(N, kmeansparam_true)
-    K = kmeansparam_true.K
-    Dim = kmeansparam_true.D
-
-    fig0, ax0 = plt.subplots(1,1, figsize=(8,8))
-    plot_training_samples(ax0, X)
-    fig0.savefig("samples.png")
-
-
-    X_range_x1 = [min(X[:,0]), max(X[:,0])]
-    X_range_x2 = [min(X[:,1]), max(X[:,1])]
-
-    npz_file = f"new_sample_data_D{kmeansparam_true.D}_K{kmeansparam_true.K}.npz"
-    np.savez(npz_file, X=X, ModelParam = kmeansparam_true)
-    print('save data in file: ', npz_file)
-
-
-    # Mu と R の初期化
-    mu_init = random.randn(K+1, Dim)
-    kmeansparam = KmeansCluster(K+1, Dim)
+    K = mu_init.shape[0]
+    Dim = X.shape[0]
+    kmeansparam = KmeansCluster(K, Dim)
     kmeansparam.Mu = mu_init
-    max_it = 10
     R = None
     cost_history = []
     fig0, axes0 = plt.subplots(1, 4, figsize=(16, 4))
@@ -244,6 +208,7 @@ def main():
 
     fig0.savefig("iteration.png")
 
+
     print("centroid:", np.round(kmeansparam.Mu, 5)),
 
     print(kmeansparam.distortion_measure(X, kmeansparam.get_alignment(X)))
@@ -256,7 +221,38 @@ def main():
     ax.set_xlabel("Iteration Step")
     ax.set_ylabel("Loss")
     fig1.savefig("distortion.png")
+    return kmeansparam, cost_history
+
+
+def main(args):
+    
+    with open(args.input_file, 'rb') as f:
+        data = pickle.load(f)
+        print(data.keys())
+        X = data['sample']
+        print('model type: ', data.get('model_type'))
+        param = data['model_param']
+        mu_init = param.Mu
+        
+    Dim = X.shape[1]
+
+    if args.num_cluster > 0:
+        random.seed(args.random_seed)
+        mu_init = random.randn(args.num_cluster, Dim)
+
+    kmeans_clustering(X, mu_init)
+
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(
+                    prog='K-means clustering',
+                    description='What the program does',
+                    epilog='Text at the bottom of help')
+    #parser.add_argument('filename')
+    parser.add_argument('input_file', type=str, help='sample data in pickle')
+    parser.add_argument('--random_seed', type=int, help='random seed', default=0)
+    parser.add_argument('-k', '--num_cluster', type=int,
+                        help='number of cluster. centroid are initialized by randn', default=0)
+    args = parser.parse_args()
+    main(args)
 
