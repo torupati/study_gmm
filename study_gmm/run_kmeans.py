@@ -243,16 +243,19 @@ def main(args):
     kmeans_clustering(X, mu_init)
 
 
-if __name__ == '__main__':
+def set_parser():
     parser = argparse.ArgumentParser(
                     prog='K-means clustering',
                     description='What the program does',
                     epilog='Text at the bottom of help')
-    #parser.add_argument('filename')
     parser.add_argument('input_file', type=str, help='sample data in pickle')
     parser.add_argument('--random_seed', type=int, help='random seed', default=0)
     parser.add_argument('-k', '--num_cluster', type=int,
                         help='number of cluster. centroid are initialized by randn', default=0)
+
+
+if __name__ == '__main__':
+    parser = set_parser()
     args = parser.parse_args()
     main(args)
 
