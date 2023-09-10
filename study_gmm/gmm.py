@@ -48,16 +48,6 @@ class GaussianMixtureModel():
     def __repr__(self):
         return '{n} (M={k} D={d})'.format(n=self.__class__.__name__, k=self._M, d= self._D)
 
-    def set_Mu(self, m, val):
-        """Set m-th Gaussian's mean vector
-
-        Args:
-            m (_type_): _description_
-            val (_type_): _description_
-        """
-        assert m < self._M
-        assert len(val) == self._D
-        self.Mu[m,:] = val
 
     def probability(self, x:ndarray) -> ndarray:
         """Calculate probability of this GMM at given sample points
@@ -84,22 +74,26 @@ class GaussianMixtureModel():
             lh = lh + np.log(wk)
         return lh
 
-    def update_e_step(self, x:ndarray) -> ndarray:
-        """Calculate gamma of GMM (E step of GMM training)
+    def update_e_step(self, x:ndarray) -> (np.ndarray, float):
+        """Calculate gamma of GMM (Expectation step of GMM training)
 
         Args:
             x(N,D), trainig samples (n-th sample, d dimensional vector)
 
         Returns:
-            gam(N,K), probability of x(n) in k-th Gaussian
+            gam(np.ndarray): probability of x(n) in k-th Gaussian, P(k|x[n]), shape=(N,K)
+            llh(float): log-likelihood
         """
         N = x.shape[0]
+        # caluclate P(x[n], k) = P(k)P(x[n]|k) and hold all as array (n,m)
         gam = array([ self.Pi[m] * multivariate_normal(self.Mu[m, :], self.Sigma[m,:,:]).pdf(x) \
             for m in range(self._M)]).transpose() # (N,M)
-        print("new gaussian = ", gam[0,0], self.Pi[0])
+        llh = 0.0 # log likelihood of all training data
         for n in range(N):
-            gam[n,:] = gam[n,:] / sum(gam[n,:])
-        return gam
+            _s = sum(gam[n,:]) # P(x[n]) = sum_k P(k,x[n])
+            gam[n,:] = gam[n,:] / _s
+            llh += np.log(_s)
+        return gam, llh
 
     def update_m_step(self, x:ndarray, gamma:ndarray) -> bool:
         """Update parameter of GMM with given allocation.
@@ -122,78 +116,6 @@ class GaussianMixtureModel():
                 self.Sigma[m, :, :] = self.Sigma[m, :, :] + gamma[n, m] * np.dot(wk, wk.T)
             self.Sigma[m, :, :] = self.Sigma[m, :, :] / np.sum(gamma[:, m])
         return True
-
-
-def _gmm(x:ndarray, pi:ndarray, mu:ndarray, sigma:ndarray) -> ndarray:
-    N, D = x.shape
-    K = len(pi)
-    return sum(pi[k] * multivariate_normal(mu[k, :], sigma[k, :, :]).pdf(x) for k in range(K))
-
-
-def gmm_e_step(x:ndarray, w:ndarray, mu:ndarray, sigma:ndarray) -> ndarray:
-    """
-    Calculate gamma of GMM (E step of GMM training)
-
-    Parameters
-    ----------
-    x(N,D), samples
-    w(K),
-    mu(K,D), mean vector
-    sigma(K,D,D), covaraince matrices
-    Returns
-    -------
-    g(N,K), probability of x(n) in k-th Gaussian
-    """
-    N, D, K = x.shape[0], x.shape[1], w.shape[0]
-    #y = np.zeros((N, K))
-    #for k in range(K):
-    #    y[:, k] = gauss(x, mu[k, :], sigma[k, :, :])  # KxN
-    #y = array([ gauss(x, mu[k, :], sigma[k,:,:]) for k in range(K)]).transpose() # (N,K)
-    #gamma = np.zeros((N, K))
-    #for n in range(N):
-    #    wk = np.zeros(K)
-    #    for k in range(K):
-    #        wk[k] = pi[k] * y[n, k]
-    #    gamma[n, :] = wk / np.sum(wk)
-    g = array([ w[k] * multivariate_normal(mu[k, :], sigma[k,:,:]).pdf(x) for k in range(K)]).transpose() # (N,K)
-    for n in range(N):
-        g[n,:] = g[n,:] / sum(g[n,:])
-    print("old gaussian = ", g[0,0], w[0])
-    return g
-
-def gmm_m_step(x:ndarray, gamma:ndarray) -> (ndarray, ndarray, ndarray):
-    """
-    Update Gaussian and weights of GMM (M step of GMM training)
-
-    Parameters
-    ----------
-    x(N,D), samples
-    g(N,K), probability of x(n) in k-th Gaussian
-
-    Returns
-    -------
-    w(K),
-    mu(K,D), mean vector
-    sigma(K,D,D), covaraince matrix
-    """
-    N, D, K = x.shape[0], x.shape[1], gamma.shape[1]
-    # update pi
-    pi = sum(gamma, axis=0) / sum(gamma)
-    # update mu
-    mu = dot(gamma.transpose(), x)
-    for k in range(K):
-        if sum(gamma[:,k]) < 1.0E-10:
-            continue
-        mu[k,:] = mu[k,:] / sum(gamma[:,k])
-    # update sigma
-    sigma = np.zeros((K, D, D))
-    for k in range(K):
-        for n in range(N):
-            wk = x - mu[k, :]
-            wk = wk[n, :, np.newaxis]
-            sigma[k, :, :] = sigma[k, :, :] + gamma[n, k] * np.dot(wk, wk.T)
-        sigma[k, :, :] = sigma[k, :, :] / np.sum(gamma[:, k])
-    return pi, mu, sigma
 
 
 infile = "out.pickle"
@@ -223,45 +145,20 @@ if len(Sigma.shape) == 2:
 
 assert(Gamma.shape[1] == Param.Mu.shape[0])
 
-# 混合ガウスの目的関数 ----------------------
-def log_likelihood_gmm(x, pi, mu, sigma):
-    # x: NxD
-    # pi: Kx1
-    # mu: KxD
-    # sigma: KxDxD
-    # output lh: NxK
-    N, D = x.shape
-    K = len(pi)
-    y = np.zeros((N, K))
-    for k in range(K):
-        y[:, k] = multivariate_normal(mu[k, :], sigma[k, :, :]).pdf(x)  # (K,N)
-    lh = 0
-    for n in range(N):
-        wk = 0
-        for k in range(K):
-            wk = wk + pi[k] * y[n, k]
-        lh = lh + np.log(wk)
-    return lh
 
+def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray):
+    max_it =12 
+    loglikelihood_history = []  # distortion measure
+    for it in range(0, max_it):
+        #_ll = gmm.log_likelihood(X)
+        _gamma, _ll = gmm.update_e_step(X)
+        loglikelihood_history.append(_ll)
+        gmm.update_m_step(X, _gamma)
+        print('GMM EM training: step={_i} E[log(P(X)]={_l}'.format(_i=it, _l=_ll/N))
+    return gmm, loglikelihood_history
 
-max_it =12 
-it = 0
-loglikelihood_history = []  # distortion measure
-for it in range(0, max_it):
-    ll = gmm.log_likelihood(X)
-    ll2 = log_likelihood_gmm(X,Pi,Mu,Sigma)
-    loglikelihood_history.append(ll)
-    print("itr={} log-likelihood={} {}".format(it, ll, ll2))
+gmm, loglikelihood_history = train_gmm(gmm, X)
 
-    Gamma = gmm_e_step(X, Pi, Mu, Sigma)
-    print('oirg', Gamma[0,0])
-    _gamma = gmm.update_e_step(X)
-    print(_gamma[0,0])
-
-    Pi, Mu, Sigma = gmm_m_step(X, Gamma)
-    gmm.update_m_step(X, _gamma)
-
-#print(np.round(Err, 2))
 fig, ax = plt.subplots(1, 1, figsize=(10, 4))
 ax.plot(range(0, len(loglikelihood_history)), loglikelihood_history, color='k', linestyle='-', marker='o')
 ax.set_xlim([0,len(loglikelihood_history)])
@@ -269,8 +166,10 @@ ax.set_ylabel("log liklihood")
 ax.set_xlabel("iteration step")
 #plt.ylim([40, 80])
 ax.grid(True)
-plt.savefig("loglikelihood-gmm.png")
+out_pngfile = "loglikelihood-gmm.png"
+plt.savefig(out_pngfile)
 plt.show(block=False)
+print(out_pngfile)
 input("wait")
 
 # メイン ----------------------------------
