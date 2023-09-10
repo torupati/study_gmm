@@ -1,17 +1,21 @@
 """
 K-means clustering
+
+todo: full covariance
 """
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import ndarray, random, uint8 # definition, modules
 from numpy import array, argmin, dot, ones, zeros, cov, savez # functions
 from math import floor
+from scipy.stats import multivariate_normal
 import pickle
 import argparse
 
 class KmeansCluster():
     """Definition of clusters for K-means altorithm
     """
+
     def __init__(self, K:int, D:int):
         """_summary_
 
@@ -30,7 +34,7 @@ class KmeansCluster():
         """Number of clusters
 
         Returns:
-            int: _description_
+            int: cluster count
         """
         return self._K
 
@@ -42,6 +46,9 @@ class KmeansCluster():
             int: dimension of input data
         """
         return self._D
+
+    def __repr__(self):
+        return '{n} (K={k} D={d})'.format(n=self.__class__.__name__, k=self._K, d= self._D)
 
     def update_Mu(self, k, val):
         assert k < self._K
@@ -69,10 +76,14 @@ class KmeansCluster():
 
     def get_alignment(self, x:ndarray) -> ndarray:
         """
+        Hard alocation of each sample to a cluster (or Gaussians)
         Args
         ----
         x[N, D]: samples
         mu[K, D]: centroids
+        Returns
+        -------
+        gamma[N,K]: n-th sample, k-th cluster
         """
         if len(x.shape) != 2:
             raise Exception("dimension error")
@@ -85,6 +96,27 @@ class KmeansCluster():
             #r[n, argmin(wk)] = 1
         return r
 
+    def get_soft_alignment(self, x:ndarray) -> ndarray:
+        """
+        Soft alocation of each sample to Gaussians. E-step of EM algorithm to GMM.
+        Args
+        ----
+        x[N, D]: samples
+        mu[K, D]: centroids
+        Returns
+        -------
+        gamma[N,K]: n-th sample, k-th cluster
+        """
+        if len(x.shape) != 2:
+            raise Exception("dimension error")
+        N = x.shape[0]
+        r = np.zeros((N, self._K))
+        g = array([ self.Pi[k] * multivariate_normal(self.Mu[k, :], self.Sigma[k,:,:]).pdf(x) \
+            for k in range(self._K)]).transpose() # (N,K)
+        for n in range(N):
+            r[n,:] = r[n,:] / sum(r[n,:])
+        return r
+
     def get_centroid(self, x:ndarray, r:ndarray) -> ndarray:
         """Calculate centroid from given alignment
 
@@ -95,16 +127,14 @@ class KmeansCluster():
         Returns:
             ndarray: updated centroid(K,D)
         """
-    #mu = np.zeros((K, x.shape[1])) # (K, D)
-    #for k in range(K):
-    #    mu[k, 0] = np.sum(r[:, k] * x[:, 0]) / np.sum(r[:, k])
-    #    mu[k, 1] = np.sum(r[:, k] * x[:, 1]) / np.sum(r[:, k])
+        #  mu[k, :] = np.sum_n(r[n, k] * x[n,:]) / sum_{n,k'}(r[n, k'])
         _mu = dot(r.transpose(), x)
         for k in range(self._K):
             if sum(r[:,k]) < 0.01:
                 # this cluster has no sample aligned.
                 continue
             _mu[k,:] = _mu[k,:] / sum(r[:,k])
+            # divied by number of aligned sample to the k-th cluster
         return _mu
 
 #X_col = ['cornflowerblue', "orange", 'black', 'white', 'red']
@@ -177,6 +207,7 @@ def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
     fig0, axes0 = plt.subplots(1, 4, figsize=(16, 4))
     for it in range(0, max_it):
         R_new = kmeansparam.get_alignment(X) # alignment to all sample to all clusters
+        #R_new = kmeansparam.get_soft_alignment(X) # not implemented yet
         #if it > 2:
         #    num_updated = (R_new - R) == np.zeros([N,K])
         #    print('num_updated = ', num_updated)
@@ -252,10 +283,10 @@ def set_parser():
     parser.add_argument('--random_seed', type=int, help='random seed', default=0)
     parser.add_argument('-k', '--num_cluster', type=int,
                         help='number of cluster. centroid are initialized by randn', default=0)
+    return parser
 
 
 if __name__ == '__main__':
     parser = set_parser()
     args = parser.parse_args()
     main(args)
-
