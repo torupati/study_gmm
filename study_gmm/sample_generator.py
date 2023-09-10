@@ -16,8 +16,9 @@ def generate_samples(n_sample: int, kmeans_param) -> np.ndarray:
         k += 1
     return X
 
+
 def main(args):
-    random.seed(1)
+    np.random.seed(1)
 
     kmeans_param = generate_sample_kmeans_cluster()
     X = generate_samples(args.N, kmeans_param)
@@ -31,7 +32,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-                    prog='K-means clustering',
+                    prog='',
                     description='What the program does',
                     epilog='Text at the bottom of help')
     #parser.add_argument('filename')
