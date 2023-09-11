@@ -6,9 +6,10 @@ from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
 
 
-
 class GaussianMixtureModel():
-    """Definition of clusters for K-means altorithm
+    """Definition of Gaussian Mixture Model (GMM)
+
+    Update with given training data by EM algorithm is implemented.
     """
 
     def __init__(self, M:int, D:int):
@@ -21,7 +22,7 @@ class GaussianMixtureModel():
         """
         self._M = M
         self._D = D
-        self.Mu = np.random.randn(M, D) #centroid
+        self.Mu = np.random.randn(M, D)
         self.Sigma = np.zeros((M, D, D))
         for m in range(self._M):
             self.Sigma[m,:,:] = np.eye(D)
@@ -118,36 +119,9 @@ class GaussianMixtureModel():
         return True
 
 
-infile = "out.pickle"
-with open(infile, 'rb') as f:
-    indata = pickle.load(f)
-    print(indata)
-X = indata['sample']
-Param = indata['model_param']
-print(X.shape)
-#print(Param.__dict__.keys())
-max_it = 16 # 繰り返しの回数
-N, D = X.shape[0], X.shape[1]
-K = Param.K
-Pi, Mu, Sigma = Param.Pi, Param.Mu, Param.Sig
-
-gmm = GaussianMixtureModel(K, D)
-gmm.Mu = Param.Mu
-Gamma = np.c_[np.ones((N, 1)), np.zeros((N, K-1))]
-
-if len(Sigma.shape) == 2:
-    new_sigma = np.zeros((K, D, D))
-    for k in range(K):
-        for d in range(D):
-            new_sigma[k, d, d] = Sigma[k, d]
-    gmm.Sigma = new_sigma
-    Sigma = new_sigma
-
-assert(Gamma.shape[1] == Param.Mu.shape[0])
-
-
 def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray):
     max_it =12 
+    N = X.shape[0]
     loglikelihood_history = []  # distortion measure
     for it in range(0, max_it):
         #_ll = gmm.log_likelihood(X)
@@ -157,20 +131,62 @@ def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray):
         print('GMM EM training: step={_i} E[log(P(X)]={_l}'.format(_i=it, _l=_ll/N))
     return gmm, loglikelihood_history
 
-gmm, loglikelihood_history = train_gmm(gmm, X)
 
-fig, ax = plt.subplots(1, 1, figsize=(10, 4))
-ax.plot(range(0, len(loglikelihood_history)), loglikelihood_history, color='k', linestyle='-', marker='o')
-ax.set_xlim([0,len(loglikelihood_history)])
-ax.set_ylabel("log liklihood")
-ax.set_xlabel("iteration step")
-#plt.ylim([40, 80])
-ax.grid(True)
-out_pngfile = "loglikelihood-gmm.png"
-plt.savefig(out_pngfile)
-plt.show(block=False)
-print(out_pngfile)
-input("wait")
+def plot_loglikelihood_history(loglikelihood_history):
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    ax.plot(range(0, len(loglikelihood_history)), loglikelihood_history, color='k', linestyle='-', marker='o')
+    ax.set_xlim([0,len(loglikelihood_history)])
+    ax.set_ylabel("log liklihood")
+    ax.set_xlabel("iteration step")
+    #plt.ylim([40, 80])
+    ax.grid(True)
+    return fig
+
+
+def main(args):
+    with open(args.input_file, 'rb') as f:
+        indata = pickle.load(f)
+        print(indata)
+    X = indata['sample']
+    Param = indata['model_param']
+    print(X.shape, Param.__dict__.keys())
+
+    max_it = 16
+    N, D = X.shape[0], X.shape[1]
+    K = Param.K
+    Pi, Mu, Sigma = Param.Pi, Param.Mu, Param.Sigma
+
+    gmm = GaussianMixtureModel(K, D)
+    gmm.Mu = np.random.randn(K, D) # Param.Mu
+    Gamma = np.c_[np.ones((N, 1)), np.zeros((N, K-1))]
+
+    gmm.Sigma = Sigma
+
+    assert(Gamma.shape[1] == Param.Mu.shape[0])
+
+    gmm, loglikelihood_history = train_gmm(gmm, X)
+
+    fig = plot_loglikelihood_history(loglikelihood_history)
+    out_pngfile = "loglikelihood-gmm.png"
+    fig.savefig(out_pngfile)
+#fig.show(block=False)
+    print(out_pngfile)
+
+import argparse
+def set_parser():
+    parser = argparse.ArgumentParser(
+                    prog='GMM',
+                    description='Training by EM algorithm',
+                    epilog='Text at the bottom of help')
+    parser.add_argument('input_file', type=str, help='sample data in pickle')
+    parser.add_argument('--random_seed', type=int, help='random seed', default=0)
+    return parser
+
+if __name__ == '__main__':
+    parser = set_parser()
+    args = parser.parse_args()
+    main(args)
+
 
 # メイン ----------------------------------
 def test_e_step():
