@@ -1,17 +1,40 @@
 import argparse
 import pickle
 import numpy as np
-from run_kmeans import generate_sample_kmeans_cluster
+from run_kmeans import KmeansCluster
+
+def generate_sample_parameter():
+    K, D = 4, 2
+    param = KmeansCluster(K, D)
+
+    param.Mu = np.array([[3.0, 3.0],\
+        [0.0, 2.0],\
+        [2.0, -3.5],\
+        [-3.0, 0.0]])
+
+    param.Sigma = np.array([\
+        [[1.0, 0.0],[0.0, 1.0]],\
+        [[0.3, 0.1],[0.1, 0.1]], \
+        [[0.6, -0.3],[-0.3,0.5]],
+        [[1.0, 0.8],[0.8, 0.8]]])
+    param.Pi = np.array([1/K]*K)
+    return param
+
 
 def generate_samples(n_sample: int, kmeans_param) -> np.ndarray:
     X = np.zeros((n_sample, kmeans_param.D))
     counts = np.random.multinomial(n_sample, kmeans_param.Pi)
     i = 0
     k = 0
+    if len(kmeans_param.Sigma.shape) == 2:
+        S = np.diag(kmeans_param.Sigma[k,:])
+    elif len(kmeans_param.Sigma.shape) == 3:
+        S = kmeans_param.Sigma
+    L = [np.linalg.cholesky(S[k,:,:]) for k in range(kmeans_param.K)]
     while i < n_sample:
         for j in range(counts[k]):
             X[i+j,:] = kmeans_param.Mu[k,:] \
-                + np.dot(np.diag(kmeans_param.Sig[k,:]), np.random.randn(kmeans_param.D))
+                + np.dot(L[k], np.random.randn(kmeans_param.D))
         i += counts[k]
         k += 1
     return X
@@ -20,7 +43,7 @@ def generate_samples(n_sample: int, kmeans_param) -> np.ndarray:
 def main(args):
     np.random.seed(1)
 
-    kmeans_param = generate_sample_kmeans_cluster()
+    kmeans_param = generate_sample_parameter()
     X = generate_samples(args.N, kmeans_param)
 
     with open(args.out_file, 'wb') as f:
