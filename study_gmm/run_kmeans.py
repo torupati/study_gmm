@@ -26,7 +26,7 @@ class KmeansCluster():
         self._K = K
         self._D = D
         self.Mu = np.random.randn(K, D) #centroid
-        self.Sig = np.ones((K, D))
+        self.Sigma = np.ones((K, D, D))
         self.Pi = np.ones(K) / K # Cumulative probability
 
     @property
@@ -180,20 +180,6 @@ def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
     ax.set_ylim(X_range_x2)
     ax.grid(True)
     ax.set_aspect("equal")
-
-
-def generate_sample_kmeans_cluster():
-    K, D = 4, 2
-    param = KmeansCluster(K, D)
-
-    #param.Mu = np.array([[-0.5, -0.5], [0.5, 1.0], [1.0, -0.5]])
-    #param.Sig = array([[.7, .7], [.8, .3], [.3, .8]])
-    #param.Pi = array([0.4, 0.8, 1])
-
-    param.Mu = array([[3.0, 3.0], [0.0, 2.0], [2.0, -3.5], [-3.0, 0.0]])
-    param.Sig = array([[1.0, 1.0], [0.3, 0.1], [0.6, 0.5], [1.0, 0.5]])
-    param.Pi = array([1/K]*K)
-    return param
 
 
 def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
