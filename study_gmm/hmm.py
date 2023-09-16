@@ -19,7 +19,7 @@ class HMM:
 
         Args:
             M (int): Number of hidden state
-            D (int): Number of observation dimension
+            D (int): Category number (dimension) of observation
         """
         self._M = M
         self._D = D
@@ -29,16 +29,21 @@ class HMM:
             = np.ones((M,M)) * (1/M) # state transition probability, Pr(s[t+1]=j | s[t]=i)
         self.obs_prob \
             = np.zeros((M,D)) # state emission probability, Pr(y|s[t]=i)
+        for m in range(M):
+            self.obs_prob[m,:] = np.random.uniform(0,1,D)
 
-        # training variables
+        # training variables (keep sufficient statistics for parameter update)
         self._ini_state_stat = np.zeros(M)
         self._state_tran_stat = np.zeros((M,M))
+        self._obs_count = np.zeros((M, D))
         self._training_count = 0
         self._training_total_log_likelihood = 0.0
 
     def __repr__(self) -> str:
         return f"HMM (#state={self._M}, #dim={self._D}) \n" \
-            + f" transition probability={self.state_tran}"
+            + f" initial state probability={self.state_priori}\n" \
+            + f" transition probability={self.state_tran}" \
+            + f" obs_prob={self.obs_prob}"
 
     def viterbi_search(self, obss:List[int]):
         """Viterbi search of discrete simble HMM
@@ -74,8 +79,8 @@ class HMM:
         # back traincing
         best_path:List[int] = []
         t, s = T-1, _trellis_prob[:,-1].argmax()
-        while t > 0:
-            print("t={} s={}".format(t,s))
+        while t >= 0:
+            #print("back trace t={} s={}".format(t,s))
             best_path.append(s)
             s = _trellis_bp[s, t]
             t = t-1
@@ -91,29 +96,45 @@ class HMM:
         """
         T = len(obss)
         best_path, log_likelihood = self.viterbi_search(obss)
-        print("best path:", best_path)
+        #print("best path:", best_path)
+        assert len(best_path) == len(obss)
         self._training_total_log_likelihood += log_likelihood
-        _obs_count_time_step = zeros([T, self._M]) # element is binary
-        _tran_count_time_step = zeros([T-1, self._M, self._M]) # element is binary
+
+        _gamma1 = zeros([T, self._M]) # element is binary
+        _gamma2 = zeros([T-1, self._M, self._M]) # g(t, s, s') element is binary
         for t, s in enumerate(best_path):
-            _obs_count_time_step[t,s] = 1.0
-            if t < T-2:
-                print(f't={t} s[t]={s} s[t+1]={best_path[t]}')
-                _tran_count_time_step[t,s, best_path[t+1]] = 1.0
+            _gamma1[t, s] = 1.0 # P(S[t]=s|X)
+            if t < T-1:
+                _gamma2[t,s, best_path[t+1]] = 1.0 # P(S[t]=s, s[t+1]=s'|X)
         #
-        self._ini_state_stat[best_path[0]] += 1.0
+        self._ini_state_stat = self._ini_state_stat + _gamma1[0]
         for t in range(T-1):
-            self._state_tran_stat = self._state_tran_stat + _tran_count_time_step[t]
+#            print('add\n ', _tran_count_time_step[t,:,:])
+            self._state_tran_stat = self._state_tran_stat + _gamma2[t,:,:]
+        for t in range(T):
+            # make observation vector. 
+            o = np.zeros(self._D)
+            o[obss[t]] = 1
+            #print('o.shape=', o.shape)
+            #print('gamma=', _gamma1[t])
+            #print('obs_count=', self._obs_count.shape)
+            #print(_gamma1[t,0] * o)
+            for _m in range(self._M):
+                self._obs_count[_m,:] = self._obs_count[_m,:] + _gamma1[t,_m] *  o
         self._training_count += 1
         return True
 
     def update_parameters(self):
         self.state_priori = self._ini_state_stat / sum(self._ini_state_stat)
-        for m in range(self._M):
+        #print('self._state_tran_stat=', self._state_tran_stat)
+        for m in range(self._M): # normalize each state
             self.state_tran[m,:] = self._state_tran_stat[m,:]/sum(self._state_tran_stat[m,:])
+            self.obs_prob[m,:] = self._obs_count[m,:]/sum(self._obs_count[m,:])
+        #print('self.state_tran_stat=', self.state_tran)
         # training variables
         self._ini_state_stat = np.zeros(self._M)
         self._state_tran_stat = np.zeros((self._M,self._M))
+        self._obs_coutn = np.zeros((self._M, self._D))
         self._training_count = 0
         ll = self._training_total_log_likelihood
         self._training_total_log_likelihood = 0.0
@@ -128,13 +149,18 @@ def hmm_viterbi_training(hmm, obss_seqs):
         obss_seqs (_type_): _description_
     """
     itr_count = 0
-    while itr_count < 10:
+    while itr_count < 4:
         for x in obss_seqs:
             hmm.push_viterbi_trainining_statistics(x)
         total_likelihood = hmm.update_parameters()
         print("itr {} log-likelihood {}".format(itr_count, total_likelihood))
+        print(f'hmm={hmm}')
         itr_count += 1
+        #break
 
+def print_state_obs(x, st):
+    for i, (_x, _s) in enumerate(zip(x, st)):
+        print(f't={i} s={st[i]} x={x[i]}')
 
 def test_viterbi_search():
     """
@@ -142,44 +168,46 @@ def test_viterbi_search():
     """
     # Assume there are 3 observation states, 2 hidden states, and 5 observations
     M = 2
-    D = 3
+    D = 4
     hmm = HMM(M, D)
     hmm.state_priori = np.array([0.5, 0.5])
-    hmm.state_tran = np.array([[0.75, 0.25],
-                               [0.32, 0.68]])
-    hmm.obs_prob = np.array([[0.8, 0.1, 0.1],
-            [0.1, 0.2, 0.7]])
+    hmm.state_tran = np.array([[0.5, 0.5],
+                               [0.5, 0.5]])
+    hmm.obs_prob = np.array([[0.5, 0.5, 0.0, 0.0],
+            [0.00, 0.00, 0.5, 0.5]])
     print(f"hmm={hmm}")
 
-    observations = [0, 1, 2, 1, 0]
-    print("observations={}".format(observations))
-    print("")
-    print( hmm.viterbi_search(observations) )
+    observations = [0, 1, 2, 3, 2, 0, 2, 0]
+    print("observations({})={}".format(len(observations), observations))
+    st, ll = hmm.viterbi_search(observations)
+    print('st (', len(st), ')= ', st )
+    print_state_obs(observations, st)
 #    print( viterbi_path(priors, transmat, obslik, scaled=False, ret_loglik=True) )#=> (array([0, 1, 1, 1, 0]), -8.0120386579275227)
 
 def test_viterbi_training():
     training_data = [\
-        [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 3],
-        [0, 0, 1, 1, 1, 2, 2, 2, 3, 3]]
+        [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 2, 3],
+        [0, 0, 0, 1, 1, 2, 2, 2, 3, 3],
+        [1, 0, 1, 1, 2, 4, 3, 0, 1],
+        [2, 0, 1, 1, 1, 2, 3, 2, 1, 1]]
     print("N={}".format(len(training_data))) 
-    model_num, symbol_num = 2, 4
-    hmm = HMM(model_num, symbol_num)
+    M = 2
+    D = 5
+    hmm = HMM(M, D)
     hmm.state_priori = np.array([0.5, 0.5])
-    hmm.state_tran = np.array([[0.75, 0.25],
-                               [0.32, 0.68]])
-    hmm.obs_prob = np.array([[0.8, 0.1, 0.1, 0.0],
-            [0.1, 0.2, 0.0, 0.7]])
-    emit_prob = zeros((model_num, symbol_num))
-    for m in range(model_num):
-        k1 = int(m*symbol_num/float(model_num))
-        k2 = min(int((m+1)*symbol_num/float(model_num))+1, symbol_num)
-        emit_prob[m,k1:k2] = 1
-        emit_prob[m,:] = emit_prob[m,:]/sum(emit_prob[m,:])
-    print("emission probability: {}".format(emit_prob))
+    hmm.state_tran = np.array([[0.5, 0.5],
+                               [0.5, 0.5]])
+    hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
+            [0.00, 0.1, 0.4, 0.4, 0.1]])
+    print("emission probability: {}".format(hmm.obs_prob))
+    #for i, x in enumerate(training_data):
+    #    print(f'n={i} x={x}')
+    #    print( hmm.viterbi_search(x) )
+        #break
     ###
     hmm_viterbi_training(hmm, training_data)
 
 
 if __name__=='__main__':
-    test_viterbi_search()
+    #test_viterbi_search()
     test_viterbi_training()
