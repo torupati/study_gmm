@@ -44,6 +44,19 @@ class HMM:
             + f" initial state probability={self.state_priori}\n" \
             + f" transition probability={self.state_tran}" \
             + f" obs_prob={self.obs_prob}"
+    
+
+    def randomize_parameter(self):
+        np.random.seed(10)
+        self.state_priori = np.random.uniform(size=self._M)
+        self.state_priori = self.state_priori / sum(self.state_priori)
+
+        self.state_tran = np.random.uniform(size=(self._M, self._M))
+        self.obs_prob = np.random.uniform(size=(self._M, self._D))
+        for m in range(self._M):
+            self.state_tran[m,:] = self.state_tran[m,:]/sum(self.state_tran[m,:])
+            self.obs_prob[m,:] = self.obs_prob[m,:]/sum(self.obs_prob[m,:])
+
 
     def viterbi_search(self, obss:List[int]):
         """Viterbi search of discrete simble HMM
@@ -136,9 +149,9 @@ class HMM:
         self._state_tran_stat = np.zeros((self._M,self._M))
         self._obs_coutn = np.zeros((self._M, self._D))
         self._training_count = 0
-        ll = self._training_total_log_likelihood
+        tll = self._training_total_log_likelihood
         self._training_total_log_likelihood = 0.0
-        return ll
+        return tll
 
 
 def hmm_viterbi_training(hmm, obss_seqs):
@@ -149,12 +162,12 @@ def hmm_viterbi_training(hmm, obss_seqs):
         obss_seqs (_type_): _description_
     """
     itr_count = 0
-    while itr_count < 4:
+    while itr_count < 20:
         for x in obss_seqs:
             hmm.push_viterbi_trainining_statistics(x)
         total_likelihood = hmm.update_parameters()
-        print("itr {} log-likelihood {}".format(itr_count, total_likelihood))
-        print(f'hmm={hmm}')
+        print("itr {} log-likelihood {}".format(itr_count, total_likelihood/obss_seqs.shape[0]))
+        #print(f'hmm={hmm}')
         itr_count += 1
         #break
 
@@ -190,7 +203,7 @@ def test_viterbi_training():
         [0, 0, 0, 1, 1, 2, 2, 2, 3, 3],
         [1, 0, 1, 1, 2, 4, 3, 0, 1],
         [2, 0, 1, 1, 1, 2, 3, 2, 1, 1]]
-    print("N={}".format(len(training_data))) 
+    #print("N={}".format(len(training_data))) 
     M = 2
     D = 5
     hmm = HMM(M, D)
@@ -199,12 +212,13 @@ def test_viterbi_training():
                                [0.5, 0.5]])
     hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
             [0.00, 0.1, 0.4, 0.4, 0.1]])
-    print("emission probability: {}".format(hmm.obs_prob))
+    #print("emission probability: {}".format(hmm.obs_prob))
     #for i, x in enumerate(training_data):
     #    print(f'n={i} x={x}')
     #    print( hmm.viterbi_search(x) )
         #break
     ###
+    hmm.randomize_parameter()
     hmm_viterbi_training(hmm, training_data)
 
 
