@@ -44,9 +44,12 @@ class HMM:
 
     def __repr__(self) -> str:
         return f"HMM (#state={self._M}, #dim={self._D}) \n" \
-            + f" initial state probability={np.exp(self._log_init_state)}\n" \
-            + f" transition probability={self.state_tran}" \
-            + f" obs_prob={self.obs_prob}"
+            + " [initial state probability]\n" \
+            + f"{np.exp(self._log_init_state)}\n" \
+            + " [transition probability]\n" \
+            + f"{self.state_tran}\n" \
+            + "observation probability\n" \
+            + f" {self.obs_prob}"
 
     @property
     def M(self) -> int:
@@ -67,7 +70,6 @@ class HMM:
         return self._D
 
     def randomize_parameter(self):
-        np.random.seed(3)
         _vals = np.random.uniform(size=self._M)
         self._log_init_state = np.log(_vals / sum(_vals)) # _vals > 0 is garanteered.
 
@@ -160,27 +162,6 @@ class HMM:
         #
         return _gamma1, _gamma2, log_likelihood
 
-    def forward_algorithm_log(self, obss):
-        T = len(obss)
-        _log_obsprob = np.zeros((T, self._M))
-        for t in range(T):
-            x_t = np.zeros(self._D)
-            x_t[obss[t]] = 1.0
-            for s in range(self._M):
-                _log_obsprob[t,s] = np.dot(x_t, self._log_obs_prob[s,:]) 
-
-        _log_alpha = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
-
-        _I_M = np.ones(self._M)
-        _log_alpha[0,:] = self._log_init_state + _log_obsprob[0,:]
-        for t in range(1, T):# for each time step t
-            for j in range(self._M): # for each state s[t]
-                _probs \
-                    = _log_alpha[t-1,:] + log(self.state_tran[:,j]+eps) + _I_M * _log_obsprob[t,j]
-                _log_alpha[t,j] = np.log(np.exp(_probs).sum())
-                #print(f't={t} j={j}', )
-        log_prob = np.log(np.exp(_log_alpha[-1,:]).sum()) # sum_s log P(x[1:T],s[T]=s)
-        return _log_alpha, log_prob
 
     def calc_logobss(self, obss):
         T = len(obss)
@@ -193,60 +174,6 @@ class HMM:
         return _log_obsprob
 
     def forward_backward_algorithm_linear(self, obss):
-        T = len(obss)
-        _obsprob = np.exp(self.calc_logobss(obss))
-
-        _alpha = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
-        _alpha[0,:] = np.dot(np.exp(self._log_init_state), np.diag(_obsprob[0,:]))
-#        _alpha[0,:] = _alpha[0,:]/_alpha[0,:].sum()
-        for t in range(1, T):# for each time step t
-            _alpha[t,:] = \
-                    np.dot(np.dot(_alpha[t-1,:], self.state_tran),\
-                        np.diag(_obsprob[t,:]))
-#            _alpha[t,:] = _alpha[t,:] / _alpha[t,:].sum()
-        _prob = _alpha[-1,:].sum() # sum_s log P(x[1:T],s[T]=s)
-#        input()
-        _beta = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
-        _beta[T-1,:] = np.ones(self._M)
-        for t in range(T-1,0,-1):# for each time step t
-            # P(s[t-1],s[t]=s,X[t:T]=x[t:T])
-            _beta[t-1,:] = \
-                    np.dot(np.dot(self.state_tran, np.diag(_obsprob[t,:])),\
-                        _beta[t,:])
-            print(f't={t}', _beta[t-1,:])
-        print('_beta=', _beta)
-        _g1 = np.zeros((T, self._M), dtype=float)
-        _g2 = np.zeros((T, self._M, self._M), dtype=float)
-        for t in range(T):
-            _g1[t,:] = np.dot(_alpha[t,:],_beta[t,:])
-            if t > 0:
-                _g2[t,:] = np.dot(_alpha[t-1,:], _beta[t,:])
-        return _g1,_g2
-
-
-    def backward_algorithm(self, obss):
-        T = len(obss)
-        _log_obsprob = np.zeros((T, self._M))
-        for t in range(T):
-            x_t = np.zeros(self._D)
-            x_t[obss[t]] = 1.0
-            for s in range(self._M):
-                _log_obsprob[t,s] = np.dot(x_t, self._log_obs_prob[s,:]) 
-
-        _log_beta = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
-
-        _I_M = np.ones(self._M)
-        _log_alpha[T-1,:] = _I_M
-        for t in range(T-1, 0, -1):# for each time step t
-            for j in range(self._M): # for each state s[t]
-                _probs \
-                    = _log_beta[t,:] + log(self.state_tran[:,j]+eps) + _I_M * _log_obsprob[t,j]
-                _log_beta[t-1,j] = np.log(np.exp(_probs).sum())
-                #print(f't={t} j={j}', )
-        log_prob = np.log(np.exp(_log_alpha[-1,:]).sum()) # sum_s log P(x[1:T],s[T]=s)
-        return _log_alpha, log_prob
-
-    def forward_backward(self, obss:List[int]):
         """Push training sequence to get probability of latent varialble condition by input.
 
         Args:
@@ -256,19 +183,66 @@ class HMM:
             gamma_1: g(t,s,s') = P(S[t]=s,S[t+1]=s'|X)
         """
         T = len(obss)
-        best_path, log_likelihood = self.viterbi_search(obss)
-        #print("best path:", best_path)
-        assert len(best_path) == len(obss)
-        self._training_total_log_likelihood += log_likelihood
+        #_obsprob = np.exp(self.calc_logobss(obss))
+        _obsprob = np.zeros((T, self._M))
+        for t in range(T):
+            for s in range(self._M):
+                _obsprob[t,s] = self.obs_prob[s,obss[t]]
+        _alpha_scale = np.ones(T) * np.nan
 
-        _gamma1 = zeros([T, self._M]) # element is binary
-        _gamma2 = zeros([T-1, self._M, self._M]) # g(t, s, s') element is binary
-        for t, s in enumerate(best_path):
-            _gamma1[t, s] = _alpha[t,s] * _beta[t,s] # P(S[t]=s|X)
-            if t < T-1:
-                _gamma2[t,s, best_path[t+1]] = 1.0 # P(S[t]=s, s[t+1]=s'|X)
-        #
-        return _gamma1, _gamma2
+        _alpha = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
+        _alpha[0,:] = np.exp(self._log_init_state) * _obsprob[0,:]
+        _alpha_scale[0] = _alpha[0,:].sum()
+        _alpha[0,:] = _alpha[0,:]/_alpha_scale[0]
+        for t in range(1, T):# for each time step t = 1, ..., T-1
+            for i in range(self._M):
+                _alpha[t,i] = 0.0
+                for _i0 in range(self._M):
+                    _alpha[t,i] += _alpha[t-1,_i0] * self.state_tran[_i0,i] * _obsprob[t,i]
+#            _alpha[t,:] = (_alpha[t-1,:] @ self.state_tran) * _obsprob[t,:]
+            _alpha_scale[t] = _alpha[t,:].sum()
+            _alpha[t,:] = _alpha[t,:] / _alpha_scale[t]
+        #print('alpha=', _alpha)
+        #print('scale=', _alpha_scale)
+
+        _log_prob = 0.0
+        for t in range(T):
+            _log_prob +=  np.log(_alpha_scale[t])# sum_s log P(x[1:T],s[T]=s)
+        self._training_total_log_likelihood += _log_prob
+        #print('alpha=', _alpha)
+
+        _beta = np.ones((T, self._M)) * np.nan # linear scale, not log scale
+        _beta[T-1,:] = np.ones(self._M)
+        _g1 = np.ones((T, self._M)) * np.nan
+        _g2 = np.ones((T-1, self._M, self._M)) * np.nan
+        _g1[T-1,:] = _alpha[T-1,:] * _beta[T-1,:]
+        #print('gamma=', _g1[T-1,:])
+        #print(f'sum(gamma[t={T-1}])=', _g1[T-1,:].sum(), ' (last)')
+        for t in range(T-1,0,-1):# for each time step t = T-1, ..., 0
+            # P(s[t-1],s[t]=s,X[t:T]=x[t:T])
+            for i in range(self._M):
+                _beta[t-1,i] = 0.0
+                for _j in range(self._M):
+                    _beta[t-1,i] += self.state_tran[i,_j] * _obsprob[t,_j] * _beta[t,_j]
+            #_b = (self.state_tran @ np.diag(_obsprob[t,:])) @ _beta[t,:]
+            _beta[t-1,:] = _beta[t-1,:] / _alpha_scale[t]
+
+            # merge forward probability and backward probability
+            _g1[t-1,:] = _alpha[t-1,:] * _beta[t-1,:]
+            assert (_g1[t-1,:].sum() - 1.0) < 1.0E-9
+            #print(f'sum(gamma[t={t-1}])=', _g1[t-1,:].sum())
+            #print(f'gamma[t={t-1}]=', _g1[t-1,:])
+            for i in range(self._M):
+                for j in range(self._M): # transition s[t-1] to s[t]
+                    _g2[t-1,i,j] = _alpha[t-1,i] * self.state_tran[i,j] * _obsprob[t,j] * _beta[t,j]
+            _g2[t-1,:,:] = _g2[t-1,:,:]  / _alpha_scale[t]
+            #print('value=', (np.dot(_alpha[t-1,:], self.state_tran) * _obsprob[t-1,:]).shape)
+            #print('gzi=', _g2[t-1,:,:])
+            #print(f'sum(gzai[t={t-1}])', _g2[t-1,:,:].sum(axis=1))
+            #input()
+            for i in range(self._M):
+                assert (_g1[t-1,i] - _g2[t-1,i,:].sum()) < 1.0E-06
+        return _g1,_g2, _log_prob
 
     
     def push_sufficient_statistics(self, obss, g1, g2):
@@ -306,11 +280,13 @@ class HMM:
             self.state_tran[m,:] = self._state_tran_stat[m,:]/sum(self._state_tran_stat[m,:])
             self.obs_prob[m,:] = self._obs_count[m,:]/sum(self._obs_count[m,:])
         #print('self.state_tran_stat=', self.state_tran)
-        # training variables
+
+        # reset training variables
         self._ini_state_stat = np.zeros(self._M)
         self._state_tran_stat = np.zeros((self._M,self._M))
         self._obs_coutn = np.zeros((self._M, self._D))
         self._training_count = 0
+
         tll = self._training_total_log_likelihood
         self._training_total_log_likelihood = 0.0
         return tll
@@ -325,7 +301,8 @@ def hmm_viterbi_training(hmm, obss_seqs):
     """
     itr_count = 0
     training_history={'step':[], 'log_likelihood':[]}
-    while itr_count < 20:
+    prev_likelihood = np.nan
+    while itr_count < 10:
         for x in obss_seqs:
             g1, g2, ll = hmm.forward_viterbi(x)
             hmm.push_sufficient_statistics(x,g1,g2)
@@ -333,7 +310,10 @@ def hmm_viterbi_training(hmm, obss_seqs):
         print("itr {} E[logP(X)]={}".format(itr_count, total_likelihood/len(obss_seqs)))
         training_history['step'].append(itr_count)
         training_history['log_likelihood'].append(total_likelihood/len(obss_seqs))
-        #print(f'hmm={hmm}')
+
+        if itr_count > 0:
+            assert prev_likelihood <= total_likelihood
+        prev_likelihood = total_likelihood
         itr_count += 1
     return training_history
 
@@ -346,22 +326,25 @@ def hmm_baum_welch(hmm, obss_seqs):
     """
     itr_count = 0
     loglikleihood_history={'step':[], 'log_liklihood':[]}
-    while itr_count < 20:
+    prev_likelihood = np.nan
+    while itr_count < 100:
         for x in obss_seqs:
-            _g1, _g2 = hmm.forward_backward_algorithm_linear(x)
-            print(_g1, _g2)
-            hmm.push_sufficient_statistics(x,_g1,_g2)
+            _gamma, _gzai, tll = hmm.forward_backward_algorithm_linear(x)
+            hmm.push_sufficient_statistics(x,_gamma,_gzai)
         total_likelihood = hmm.update_parameters()
-        #print("itr {} E[logP(X)]={}".format(itr_count, total_likelihood/len(obss_seqs)))
-        print('------ after Baum welch trianing ------')
-        print(f'hmm={hmm}')
-        break
+        print("itr {} E[logP(X)]={}".format(itr_count, total_likelihood/len(obss_seqs)))
+        #print('------ after Baum welch trianing ------')
+        #print(f'hmm={hmm}')
+        if itr_count > 0:
+            assert prev_likelihood <= total_likelihood
+        prev_likelihood = total_likelihood
         itr_count += 1
 
 
 def print_state_obs(x, st):
     for i, (_x, _s) in enumerate(zip(x, st)):
         print(f't={i} s={st[i]} x={x[i]}')
+
 
 def test_viterbi_search():
     """
@@ -372,7 +355,7 @@ def test_viterbi_search():
     D = 4
     hmm = HMM(M, D)
     hmm._log_init_state = np.log(np.array([0.5, 0.5]))
-    hmm.state_tran = np.array([[0.5, 0.5],
+    hmm.state_tran = np.array([[0.1, 0.9],
                                [0.5, 0.5]])
     hmm.obs_prob = np.array([[0.5, 0.5, 0.0, 0.0],
             [0.00, 0.00, 0.5, 0.5]])
@@ -410,6 +393,7 @@ def test_viterbi_training():
 
 
 def test_baum_welch():
+#   np.random.seed(3)
     training_data = [\
         [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 2, 3],
         [0, 0, 0, 1, 1, 2, 2, 2, 3, 3],
@@ -420,7 +404,7 @@ def test_baum_welch():
     D = 5
     hmm = HMM(M, D)
     hmm._log_init_state = np.log(np.array([0.5, 0.5]))
-    hmm.state_tran = np.array([[0.5, 0.5],
+    hmm.state_tran = np.array([[0.9, 0.1],
                                [0.5, 0.5]])
     hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
             [0.00, 0.1, 0.4, 0.4, 0.1]])
@@ -434,4 +418,6 @@ def test_baum_welch():
 if __name__=='__main__':
     #test_viterbi_search()
     #test_viterbi_training()
+    #for i in range(100):
+    #    test_baum_welch()
     test_baum_welch()
