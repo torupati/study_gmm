@@ -2,6 +2,7 @@ import argparse
 import pickle
 import numpy as np
 from run_kmeans import KmeansCluster
+from hmm import HMM
 
 def generate_sample_parameter():
     K, D = 4, 2
@@ -30,6 +31,7 @@ def generate_samples(n_sample: int, kmeans_param) -> np.ndarray:
         S = np.diag(kmeans_param.Sigma[k,:])
     elif len(kmeans_param.Sigma.shape) == 3:
         S = kmeans_param.Sigma
+    # Prepare matrix L such as L*L = S
     L = [np.linalg.cholesky(S[k,:,:]) for k in range(kmeans_param.K)]
     while i < n_sample:
         for j in range(counts[k]):
@@ -37,6 +39,40 @@ def generate_samples(n_sample: int, kmeans_param) -> np.ndarray:
                 + np.dot(L[k], np.random.randn(kmeans_param.D))
         i += counts[k]
         k += 1
+    return X
+
+
+def generate_markov_process(length:int, init_prob, tran_prob):
+    """_summary_
+
+    Args:
+        length (int): length of state sequence
+        init_prob (_type_): initial state probability, pi[i] = P(s[t=0]=i)
+        tran_prob (_type_): state transition probability, a[i][j] = P(s[t]=j|s[t-1]=i)
+    """
+    print(f'init_prob.shape={init_prob.shape} tran_prob.shape={tran_prob.shape}')
+    if length < 1:
+        raise Exception('Length must be larger than 1.')
+    n_states = len(init_prob)
+    assert tran_prob.shape == (n_states, n_states)
+    s = [np.nan] * length
+    s[0] = np.random.choice(n_states, p=init_prob)
+    for t in range(1,length):
+        s[t] = np.random.choice(n_states, p=tran_prob[s[t-1],:])
+    return s
+
+
+def generate_samples_hmm(sequence_lengths, hmm:HMM) -> np.ndarray:
+    """_summary_
+
+    Args:
+        n_sequence (int): _description_
+        hmm (HMM): _description_
+
+    Returns:
+        np.ndarray: _description_
+    """
+    X = None
     return X
 
 
