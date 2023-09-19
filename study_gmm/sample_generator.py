@@ -61,6 +61,22 @@ def generate_markov_process(length:int, init_prob, tran_prob):
         s[t] = np.random.choice(n_states, p=tran_prob[s[t-1],:])
     return s
 
+def generate_length(ave_len:int, num: int):
+    """_summary_
+
+    Args:
+        ave_len (int): _description_
+        num (int): _description_
+    """
+    lengths = np.random.poisson(ave_len, num)
+    if len(lengths[lengths == 0]) > 0:
+        for i in np.where(length == 0):
+            while True:
+                v = np.random.poisson(ave_len, 1)[0]
+                if v > 0:
+                    lengths[i] = v
+                    break
+    return lengths
 
 def generate_samples_hmm(sequence_lengths, hmm:HMM) -> np.ndarray:
     """_summary_
