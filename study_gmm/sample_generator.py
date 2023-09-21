@@ -1,6 +1,7 @@
 import argparse
 import pickle
 import numpy as np
+
 from run_kmeans import KmeansCluster
 from hmm import HMM
 
@@ -42,7 +43,7 @@ def generate_samples(n_sample: int, kmeans_param) -> np.ndarray:
     return X
 
 
-def generate_markov_process(length:int, init_prob, tran_prob):
+def sample_markov_process(length:int, init_prob, tran_prob):
     """_summary_
 
     Args:
@@ -50,7 +51,7 @@ def generate_markov_process(length:int, init_prob, tran_prob):
         init_prob (_type_): initial state probability, pi[i] = P(s[t=0]=i)
         tran_prob (_type_): state transition probability, a[i][j] = P(s[t]=j|s[t-1]=i)
     """
-    print(f'init_prob.shape={init_prob.shape} tran_prob.shape={tran_prob.shape}')
+    #print(f'init_prob.shape={init_prob.shape} tran_prob.shape={tran_prob.shape}')
     if length < 1:
         raise Exception('Length must be larger than 1.')
     n_states = len(init_prob)
@@ -61,7 +62,8 @@ def generate_markov_process(length:int, init_prob, tran_prob):
         s[t] = np.random.choice(n_states, p=tran_prob[s[t-1],:])
     return s
 
-def generate_length(ave_len:int, num: int):
+
+def sample_lengths(ave_len:int, num: int):
     """_summary_
 
     Args:
@@ -78,21 +80,43 @@ def generate_length(ave_len:int, num: int):
                     break
     return lengths
 
-def generate_samples_hmm(sequence_lengths, hmm:HMM) -> np.ndarray:
-    """_summary_
+def sample_multiple_markov_process(num:int, init_prob, tran_prob):
+    """
+    Sampling multiple Markov processes with given model paremeters.
+
+    Args:
+        num (int): _description_
+        init_prob (_type_): _description_
+        tran_prob (_type_): _description_
+    """
+    assert num > 0
+    lengths = sample_lengths(10, num)
+    print('lengths=', lengths)
+    x = []
+    for _l in lengths:
+        x1 = sample_markov_process(_l, init_prob, tran_prob)
+        x.append(x1)
+    return x
+
+def sampling_from_hmm(sequence_lengths, hmm:HMM):
+    """sample HMM output and its hidden states from given parameters
 
     Args:
         n_sequence (int): _description_
         hmm (HMM): _description_
-
-    Returns:
-        np.ndarray: _description_
     """
-    X = None
-    return X
+    out = []
+    outdim_ids = hmm.D
+    for _l in sequence_lengths:
+        states = sample_markov_process(_l, hmm.init_state, hmm.state_tran)
+        for s_t in states:
+            # sample x from p(x|s[t])
+            x = np.random.choice(outdim_ids, p=hmm.obs_prob[s_t,:])
+            out.append(x)
+    return states, out
 
 
-def main(args):
+def main_gmm(args):
     np.random.seed(1)
 
     kmeans_param = generate_sample_parameter()
@@ -105,16 +129,76 @@ def main(args):
         print(args.out_file)
 
 
+def main_hmm(args):
+
+    M = 2
+    D = 5
+    hmm_param = HMM(2, 5)
+    hmm_param.init_state = np.array([0.1, 0.9])
+    hmm_param.state_tran = np.array([[0.9, 0.1],
+                           [0.5, 0.5]])
+    hmm_param.obs_prob = np.array([\
+        [0.50, 0.20, 0.20, 0.10, 0.00],\
+        [0.00, 0.10, 0.40, 0.40, 0.10]\
+    ])
+    x_lengths = sample_lengths(args.avelen, args.N)
+    st, x = sampling_from_hmm(x_lengths, hmm_param)
+
+    with open(args.out_file, 'wb') as f:
+        pickle.dump({'model_param': hmm_param,
+                    'sample': x,
+                    'latent': st,
+                    'model_type': 'HMM'}, f)
+        print(args.out_file)
+
+
+def main_mm(args):
+    np.random.seed(1)
+
+    M = 2
+    D = 5
+    init_state = np.array([0.1, 0.9])
+    state_tran = np.array([[0.9, 0.1],
+                           [0.5, 0.5]])
+
+    print("main_mm")
+    X = sample_multiple_markov_process(args.N, init_state, state_tran)
+    print(X)
+
+    #with open(args.out_file, 'wb') as f:
+    #    pickle.dump({'model_param': kmeans_param,
+    #                'sample': X,
+    #                'model_type': 'KmeansClustering'}, f)
+    #    print(args.out_file)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
                     prog='',
                     description='What the program does',
                     epilog='Text at the bottom of help')
-    #parser.add_argument('filename')
-    parser.add_argument('N', type=int, help='number of sample')
-    parser.add_argument('-o', '--out_file', type=str, \
-        help='output file name(out.pickle)', default='out.pickle')
-    parser.add_argument('-v', '--verbose', action='store_true')
-    args = parser.parse_args()
 
-    main(args)
+    parser.add_argument('N', type=int, help='number of sample')
+    parser.add_argument('out_file', type=str, \
+        help='output file name(out.pickle)', default='out.pickle')
+
+    subparsers = parser.add_subparsers(title='model',
+                                   description='probabilistic models(gmm,mm,hmm)',
+                                   help='select one from GMM,HMM,MM',
+                                   required=True)
+    parser_mm = subparsers.add_parser('MM', help='markov model help')
+    #parser_mm.add_argument('bar', type=int, help='bar help')
+    parser_mm.set_defaults(func=main_mm)
+
+    parser_gmm = subparsers.add_parser('GMM', help='markov model help')
+    #parser.add_argument('filename')
+    #parser.add_argument('-v', '--verbose', action='store_true')
+    parser_gmm.set_defaults(func=main_gmm)
+
+    parser_hmm = subparsers.add_parser('HMM', help='markov model help')
+    parser_hmm .add_argument('--avelen', type=int, help='average sample lengths', default=10)
+    parser_hmm.set_defaults(func=main_hmm)
+
+    args = parser.parse_args()
+    args.func(args)
+

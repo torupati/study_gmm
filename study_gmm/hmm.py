@@ -23,17 +23,14 @@ class HMM:
         """
         self._M = M
         self._D = D
-        self._log_init_state \
-            = np.log(np.array([1/M]*M)) # initial state probability log ( Pr(s[t=0]==i) )
+        self.init_state = np.array([1/M]*M) # initial state probability Pr(s[t=0]==i)
         self.state_tran \
             = np.ones((M,M)) * (1/M) # state transition probability, Pr(s[t+1]=j | s[t]=i)
         self.obs_prob \
             = np.zeros((M,D)) # state emission probability, Pr(y|s[t]=i)
-        self._log_obs_prob = np.zeros((M,D))
         for m in range(M):
             self.obs_prob[m,:] = np.random.uniform(0,1,D)
             self.obs_prob[m,:] = self.obs_prob[m,:] / self.obs_prob[m,:].sum()
-            self._log_obs_prob[m,:] = np.log(self.obs_prob[m,:])
 
         # training variables (keep sufficient statistics for parameter update)
         self._ini_state_stat = np.zeros(M)
@@ -45,7 +42,7 @@ class HMM:
     def __repr__(self) -> str:
         return f"HMM (#state={self._M}, #dim={self._D}) \n" \
             + " [initial state probability]\n" \
-            + f"{np.exp(self._log_init_state)}\n" \
+            + f"{self.init_state}\n" \
             + " [transition probability]\n" \
             + f"{self.state_tran}\n" \
             + "observation probability\n" \
@@ -71,7 +68,7 @@ class HMM:
 
     def randomize_parameter(self):
         _vals = np.random.uniform(size=self._M)
-        self._log_init_state = np.log(_vals / sum(_vals)) # _vals > 0 is garanteered.
+        self.init_state = _vals / sum(_vals) # _vals > 0 is garanteered.
 
         self.state_tran = np.random.uniform(size=(self._M, self._M))
         self.obs_prob = np.random.uniform(size=(self._M, self._D))
@@ -79,8 +76,7 @@ class HMM:
             self.state_tran[m,:] = self.state_tran[m,:]/sum(self.state_tran[m,:])
             self.obs_prob[m,:] = self.obs_prob[m,:]/sum(self.obs_prob[m,:])
 
-
-    def viterbi_search(self, obss:List[int]):
+    def viterbi_search(self, obss):
         """Viterbi search of discrete simble HMM
 
         - Finds the most-probable (Viterbi) path through the HMM states given observation.
@@ -104,7 +100,11 @@ class HMM:
             x_t = np.zeros(self._D)
             x_t[obss[t]] = 1.0
             for s in range(self._M):
-                _log_obsprob[t,s] = np.dot(x_t, self._log_obs_prob[s,:]) 
+                _obs_prob = self.obs_prob[s,:]
+                _obs_prob[_obs_prob < 1.0E-100] = 1.0E-100
+                _log_obsprob[t,s] = np.dot(x_t, np.log(_obs_prob))
+                #print(f"log P(x[t={t}]={obss[t]} | S[t={t}]={s})=",_log_obsprob[t,s])
+            #print('')
             # log likelihood of each state, each time step
         #print("value(t,s)=log P(x[t]|S[t]=s)=",_log_obsprob.shape)
         #print(_log_obsprob)
@@ -112,20 +112,26 @@ class HMM:
         _trellis_prob = np.ones((self._M, T), dtype=float) * np.log(eps) # log scale
         _trellis_bp = np.zeros((self._M,T), dtype=int)
 
-        _trellis_prob[:,0] = self._log_init_state + _log_obsprob[0,:]
+        _log_init_state = []
+        for x in self.init_state:
+            v = -10000.0
+            if x > 1.0E-300:
+                v = np.log(x)
+            _log_init_state.append(v) 
+        _trellis_prob[:,0] = _log_init_state + _log_obsprob[0,:]
         _trellis_bp[:,0] = 0
         for t in range(1, T):# for each time step t
             for j in range(self._M): # for each state s[t-1]=i to s[t]=j
                 # _probs[i] = P(x[1:t]|s[t-1]=i,s[t]=j)
                 _probs \
                     = _trellis_prob[:,t-1] + log(self.state_tran[:,j]+eps) + _log_obsprob[t,j]
-                print('probs=', _probs)
+                #print('probs=', _probs)
                 # calculate path from each s[t-1]. _probs is array
                 _trellis_bp[j,t] = _probs.argmax()
                 _trellis_prob[j,t] = _probs[_trellis_bp[j,t]]
-            print('t=', t)
-            print('trellis=', _trellis_prob[:,t])
-        print(_trellis_prob)
+            #print('t=', t)
+            #print('trellis=', _trellis_prob[:,t])
+        #print(_trellis_prob)
         # back traincing
         best_path:List[int] = []
         t, s = T-1, _trellis_prob[:,-1].argmax()
@@ -170,7 +176,7 @@ class HMM:
             x_t = np.zeros(self._D)
             x_t[obss[t]] = 1.0
             for s in range(self._M):
-                _log_obsprob[t,s] = np.dot(x_t, self._log_obs_prob[s,:])
+                _log_obsprob[t,s] = np.dot(x_t, np.log(self.obs_prob[s,:]))
         return _log_obsprob
 
     def forward_backward_algorithm_linear(self, obss):
@@ -191,7 +197,7 @@ class HMM:
         _alpha_scale = np.ones(T) * np.nan
 
         _alpha = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
-        _alpha[0,:] = np.exp(self._log_init_state) * _obsprob[0,:]
+        _alpha[0,:] = self.init_state * _obsprob[0,:]
         _alpha_scale[0] = _alpha[0,:].sum()
         _alpha[0,:] = _alpha[0,:]/_alpha_scale[0]
         for t in range(1, T):# for each time step t = 1, ..., T-1
@@ -274,11 +280,13 @@ class HMM:
         """
         _init_state = self._ini_state_stat / sum(self._ini_state_stat)
         _init_state[_init_state < eps] = eps # if probability is lower then eps, set eps to void log(0)
-        self._log_init_state = np.log(_init_state)
+        self.init_state = _init_state
         #print('self._state_tran_stat=', self._state_tran_stat)
         for m in range(self._M): # normalize each state
-            self.state_tran[m,:] = self._state_tran_stat[m,:]/sum(self._state_tran_stat[m,:])
-            self.obs_prob[m,:] = self._obs_count[m,:]/sum(self._obs_count[m,:])
+            if sum(self._state_tran_stat[m,:]) > 0.0:
+                self.state_tran[m,:] = self._state_tran_stat[m,:]/sum(self._state_tran_stat[m,:])
+            if sum(self._obs_count[m,:]) > 0.0:
+                self.obs_prob[m,:] = self._obs_count[m,:]/sum(self._obs_count[m,:])
         #print('self.state_tran_stat=', self.state_tran)
 
         # reset training variables
@@ -356,7 +364,7 @@ def test_viterbi_training():
     M = 2
     D = 5
     hmm = HMM(M, D)
-    hmm._log_init_state = np.log(np.array([0.5, 0.5]))
+    hmm.init_state = np.array([0.5, 0.5])
     hmm.state_tran = np.array([[0.5, 0.5],
                                [0.5, 0.5]])
     hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
@@ -381,7 +389,7 @@ def test_baum_welch():
     M = 2
     D = 5
     hmm = HMM(M, D)
-    hmm._log_init_state = np.log(np.array([0.5, 0.5]))
+    hmm.init_state = np.array([0.5, 0.5])
     hmm.state_tran = np.array([[0.9, 0.1],
                                [0.5, 0.5]])
     hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
@@ -395,7 +403,8 @@ def test_baum_welch():
 
 if __name__=='__main__':
     #test_viterbi_search()
-    #test_viterbi_training()
     #for i in range(100):
-    #    test_baum_welch()
-    test_baum_welch()
+    #    test_viterbi_training()
+    for i in range(100):
+        test_baum_welch()
+    #test_baum_welch()
