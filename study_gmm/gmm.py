@@ -1,3 +1,6 @@
+"""
+EM algorithm implementation to train Gaussian Mixture Models
+"""
 import numpy as np
 import pickle
 from numpy import ndarray, random
@@ -87,8 +90,13 @@ class GaussianMixtureModel():
         """
         N = x.shape[0]
         # caluclate P(x[n], k) = P(k)P(x[n]|k) and hold all as array (n,m)
-        gam = array([ self.Pi[m] * multivariate_normal(self.Mu[m, :], self.Sigma[m,:,:]).pdf(x) \
-            for m in range(self._M)]).transpose() # (N,M)
+        try:
+            gam = array([ self.Pi[m] * multivariate_normal(self.Mu[m, :], self.Sigma[m,:,:], allow_singular=True).pdf(x) \
+                for m in range(self._M)]).transpose() # (N,M)
+        except np.linalg.LinAlgError as e:
+            print(self.Pi)
+            print(self.Sigma)
+            raise e
         llh = 0.0 # log likelihood of all training data
         for n in range(N):
             _s = sum(gam[n,:]) # P(x[n]) = sum_k P(k,x[n])
@@ -109,18 +117,50 @@ class GaussianMixtureModel():
             if sum(gamma[:,m]) < 1.0E-10:
                 continue
             self.Mu[m,:] = self.Mu[m,:] / sum(gamma[:,m])
-            self.Sigma = np.zeros((M, D, D))
-        for m in range(self._M):
+            #self.Sigma = np.zeros((M, D, D))
+        #for m in range(self._M):
+        #    if sum(gamma[:,m]) < 1.0E-5:
+        #        continue
             for n in range(N):
                 wk = x - self.Mu[m, :] # distance between x and m-th Gaussian's mean
                 wk = wk[n, :, np.newaxis]
                 self.Sigma[m, :, :] = self.Sigma[m, :, :] + gamma[n, m] * np.dot(wk, wk.T)
-            self.Sigma[m, :, :] = self.Sigma[m, :, :] / np.sum(gamma[:, m])
+            #print(self.Sigma[m,:,:])
+            tmp_sig = self.Sigma[m, :, :] / np.sum(gamma[:, m])
+            if not (tmp_sig > 1E4).any():
+                self.Sigma[m, :, :] = tmp_sig
+            else:
+                print('too large: self.Sigma=', self.Sigma)
+                print('gamma = ', np.sum(gamma[:,m]), ' covariance is not updated.')
+                #input()
         return True
 
+    def split_Gaussian(self):
+        """
+        
+        """
+        gauss_vars = {}
+        for m in self._M:
+            var = np.sum(np.diag(self.Sigma[m,:,:]))
+            gauss_vars[m] = var
+        max_m = max(guass_vars, key=gauss_vars.get)
+        self._M += 1
+        
+        self.Mu = np.random.randn(self._M, self._D)
+        self.Sigma = np.zeros((self._M, self._D, self._D))
 
-def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray):
-    max_it =12 
+
+def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray, max_it:int =12):
+    """Train GMM
+
+    Args:
+        gmm (GaussianMixtureModel): _description_
+        X (np.ndarray): _description_
+        max_it (int, optional): number of iteration. Defaults to 12.
+
+    Returns:
+        _type_: _description_
+    """
     N = X.shape[0]
     loglikelihood_history = []  # distortion measure
     for it in range(0, max_it):
@@ -128,7 +168,7 @@ def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray):
         _gamma, _ll = gmm.update_e_step(X)
         loglikelihood_history.append(_ll)
         gmm.update_m_step(X, _gamma)
-        print('GMM EM training: step={_i} E[log(P(X)]={_l}'.format(_i=it, _l=_ll/N))
+#        print('GMM EM training: step={_i} E[log(P(X)]={_l}'.format(_i=it, _l=_ll/N))
     return gmm, loglikelihood_history
 
 
@@ -142,20 +182,46 @@ def plot_loglikelihood_history(loglikelihood_history):
     ax.grid(True)
     return fig
 
-
-def main(args):
-    with open(args.input_file, 'rb') as f:
+def load_from_file(input_file:str):
+    with open(input_file, 'rb') as f:
         indata = pickle.load(f)
-        print(indata)
-    X = indata['sample']
-    Param = indata['model_param']
-    print(X.shape, Param.__dict__.keys())
+        #print(indata)
+    X = indata['sample'] # data points.
+    Param = indata['model_param'] # model parameters.
+    return X, Param
 
-    max_it = 16
+def mixutre_number_test(X, Param, max_mixnum:int = 10):
     N, D = X.shape[0], X.shape[1]
     K = Param.K
     Pi, Mu, Sigma = Param.Pi, Param.Mu, Param.Sigma
 
+    mixnum_likelihood = {}
+    L = np.linalg.cholesky(np.cov(X.T))
+    for mix_num in range(2, max_mixnum):
+        np.random.seed(0)
+        gmm = GaussianMixtureModel(mix_num, D)
+        gmm.Sigma = np.zeros([mix_num, D, D])
+        gmm.Mu = np.zeros([mix_num, D])
+        for m in range(mix_num):
+            gmm.Mu[m, :] = X.mean() + np.dot(L, np.random.randn(D))
+            gmm.Sigma[m, :, :] = np.eye(D)
+        gmm, loglikelihood_history = train_gmm(gmm, X, max_it=100)
+        print('GMM EM training: mixture={i} E[log(P(X)]={_l}'.format(i=mix_num, _l=loglikelihood_history[-1]))
+        mixnum_likelihood[mix_num] = loglikelihood_history[-1]
+    print(mixnum_likelihood)
+
+
+def main(args):
+    X, Param = load_from_file(args.input_file)
+    print(X.shape, Param.__dict__.keys())
+    if args.max_mixnum > 0:
+        mixutre_number_test(X, Param, args.max_mixnum)
+        return
+
+    N, D = X.shape[0], X.shape[1]
+    K = Param.K
+    Pi, Mu, Sigma = Param.Pi, Param.Mu, Param.Sigma
+    max_it = 10
     gmm = GaussianMixtureModel(K, D)
     gmm.Mu = np.random.randn(K, D) # Param.Mu
     Gamma = np.c_[np.ones((N, 1)), np.zeros((N, K-1))]
@@ -180,6 +246,8 @@ def set_parser():
                     epilog='Text at the bottom of help')
     parser.add_argument('input_file', type=str, help='sample data in pickle')
     parser.add_argument('--random_seed', type=int, help='random seed', default=0)
+    parser.add_argument('--max-mixnum', type=int, default = 0, \
+        help='maximum mixture number (0 is not use this option)')
     return parser
 
 if __name__ == '__main__':
@@ -187,20 +255,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     main(args)
 
-
-# メイン ----------------------------------
-def test_e_step():
-    Gamma = gmm_e_step(X, Pi, Mu, Sigma)
-    
-    # 表示 ----------------------------------
-    plt.figure(1, figsize=(4, 4))
-    show_mixgauss_prm(X, Gamma, Pi, Mu, Sigma)
-
-# メイン ----------------------------------
-def test_m_stemp():
-    Pi, Mu, Sigma = m_step_mixgauss(X, Gamma)
-    
-    # 表示 ----------------------------------
-    plt.figure(1, figsize=(4, 4))
-    show_mixgauss_prm(X, Gamma, Pi, Mu, Sigma)
 
