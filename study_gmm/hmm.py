@@ -202,8 +202,6 @@ class HMM:
             _alpha_scale[t] = _alpha[t,:].sum()
             _alpha[t,:] = _alpha[t,:] / _alpha_scale[t]
             # P(s[t]=s | X[t]=x[t], S)
-        #print('alpha=', _alpha)
-        #print('scale=', _alpha_scale)
         return _alpha, _alpha_scale
 
 
