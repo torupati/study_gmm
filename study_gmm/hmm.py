@@ -155,7 +155,6 @@ class HMM:
         """
         T = len(obss)
         best_path, log_likelihood = self.viterbi_search(obss)
-        #print("best path:", best_path)
         assert len(best_path) == len(obss)
         self._training_total_log_likelihood += log_likelihood
 
@@ -179,6 +178,35 @@ class HMM:
                 _log_obsprob[t,s] = np.dot(x_t, np.log(self.obs_prob[s,:]))
         return _log_obsprob
 
+    def forward_algorithm(self, obsprob) -> (np.ndarray, np.ndarray):
+        """HMM forward algorithm
+        alpha[t,s] = P(s[t]|x[1],...,x[t])
+        alpha_scale[t] = Sum_s[t] P(x[1],...,x[t], s[t])
+
+        Args:
+            obsprob (_type_): observation probabilities at time t, state s
+        """
+        T, _M = obsprob.shape
+        assert _M == self._M
+        _alpha_scale = np.ones(T) * np.nan
+        _alpha = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
+        _alpha[0,:] = self.init_state * obsprob[0,:] # alpha[t=0,s] = pi[s] * b(x[t=0],s)
+        _alpha_scale[0] = _alpha[0,:].sum()
+        _alpha[0,:] = _alpha[0,:]/_alpha_scale[0]
+        for t in range(1, T):# for each time step t = 1, ..., T-1
+            for i in range(self._M):
+                _alpha[t,i] = 0.0
+                for _i0 in range(self._M):
+                    _alpha[t,i] += _alpha[t-1,_i0] * self.state_tran[_i0,i] * obsprob[t,i]
+#            _alpha[t,:] = (_alpha[t-1,:] @ self.state_tran) * _obsprob[t,:]
+            _alpha_scale[t] = _alpha[t,:].sum()
+            _alpha[t,:] = _alpha[t,:] / _alpha_scale[t]
+            # P(s[t]=s | X[t]=x[t], S)
+        #print('alpha=', _alpha)
+        #print('scale=', _alpha_scale)
+        return _alpha, _alpha_scale
+
+
     def forward_backward_algorithm_linear(self, obss):
         """Push training sequence to get probability of latent varialble condition by input.
 
@@ -194,22 +222,8 @@ class HMM:
         for t in range(T):
             for s in range(self._M):
                 _obsprob[t,s] = self.obs_prob[s,obss[t]]
-        _alpha_scale = np.ones(T) * np.nan
-
-        _alpha = np.zeros((T, self._M), dtype=float) # linear scale, not log scale
-        _alpha[0,:] = self.init_state * _obsprob[0,:]
-        _alpha_scale[0] = _alpha[0,:].sum()
-        _alpha[0,:] = _alpha[0,:]/_alpha_scale[0]
-        for t in range(1, T):# for each time step t = 1, ..., T-1
-            for i in range(self._M):
-                _alpha[t,i] = 0.0
-                for _i0 in range(self._M):
-                    _alpha[t,i] += _alpha[t-1,_i0] * self.state_tran[_i0,i] * _obsprob[t,i]
-#            _alpha[t,:] = (_alpha[t-1,:] @ self.state_tran) * _obsprob[t,:]
-            _alpha_scale[t] = _alpha[t,:].sum()
-            _alpha[t,:] = _alpha[t,:] / _alpha_scale[t]
-        #print('alpha=', _alpha)
-        #print('scale=', _alpha_scale)
+        
+        _alpha, _alpha_scale = self.forward_algorithm(_obsprob)
 
         _log_prob = 0.0
         for t in range(T):
@@ -250,7 +264,7 @@ class HMM:
                 assert (_g1[t-1,i] - _g2[t-1,i,:].sum()) < 1.0E-06
         return _g1,_g2, _log_prob
 
-    
+
     def push_sufficient_statistics(self, obss, g1, g2):
         """Update suffience statistics for parameters by given observation and latent state probability.
         This function is used in both Viterbi traning and Baum-Welch algorithm.
