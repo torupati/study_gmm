@@ -2,8 +2,8 @@ import argparse
 import pickle
 import numpy as np
 
-from run_kmeans import KmeansCluster
-from hmm import HMM
+from .run_kmeans import KmeansCluster
+from .hmm import HMM
 
 def generate_sample_parameter():
     K, D = 4, 2
