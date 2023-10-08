@@ -103,11 +103,6 @@ class HMM:
                 _obs_prob = self.obs_prob[s,:]
                 _obs_prob[_obs_prob < 1.0E-100] = 1.0E-100
                 _log_obsprob[t,s] = np.dot(x_t, np.log(_obs_prob))
-                #print(f"log P(x[t={t}]={obss[t]} | S[t={t}]={s})=",_log_obsprob[t,s])
-            #print('')
-            # log likelihood of each state, each time step
-        #print("value(t,s)=log P(x[t]|S[t]=s)=",_log_obsprob.shape)
-        #print(_log_obsprob)
 
         _trellis_prob = np.ones((self._M, T), dtype=float) * np.log(eps) # log scale
         _trellis_bp = np.zeros((self._M,T), dtype=int)
@@ -204,6 +199,23 @@ class HMM:
             # P(s[t]=s | X[t]=x[t], S)
         return _alpha, _alpha_scale
 
+    def calculate_prob(self, obss) -> np.ndarray:
+        """Caluclate log probabilities of given observation
+
+        b(t, m) = P(x[t] | State=m)
+
+        Args:
+            obss (_type_): _description_
+
+        Returns:
+            np.ndarray: (T, M)-shape array, log observation probabilities
+        """
+        T = len(obss)
+        _obsprob = np.zeros((T, self._M))
+        for t in range(T):
+            for s in range(self._M):
+                _obsprob[t,s] = self.obs_prob[s,obss[t]]
+        return _obsprob
 
     def forward_backward_algorithm_linear(self, obss):
         """Push training sequence to get probability of latent varialble condition by input.
@@ -216,11 +228,7 @@ class HMM:
         """
         T = len(obss)
         #_obsprob = np.exp(self.calc_logobss(obss))
-        _obsprob = np.zeros((T, self._M))
-        for t in range(T):
-            for s in range(self._M):
-                _obsprob[t,s] = self.obs_prob[s,obss[t]]
-        
+        _obsprob = self.calculate_prob(obss)
         _alpha, _alpha_scale = self.forward_algorithm(_obsprob)
 
         _log_prob = 0.0
@@ -263,14 +271,14 @@ class HMM:
         return _g1,_g2, _log_prob
 
 
-    def push_sufficient_statistics(self, obss, g1, g2):
+    def push_sufficient_statistics(self, obss: np.ndarray, g1: np.ndarray, g2: np.ndarray) -> int:
         """Update suffience statistics for parameters by given observation and latent state probability.
         This function is used in both Viterbi traning and Baum-Welch algorithm.
 
         Args:
-            obss (_type_): given observation sequence X
-            g1 (_type_): gamma(t, s, s') = P(S[t]=s, S[t+1]=s'|X)
-            g2 (_type_): gamma(t, s) = P(S[t]=s|X)
+            obss (numpy.ndarray): A shape-(T,D) array, observation X given
+            g1 (numpy.ndarray): A shape-(T, M) array, gamma(t, s, s') = P(S[t]=s, S[t+1]=s'|X)
+            g2 (numpy.ndarray): A shape-(T, M, M) array, gamma(t, s) = P(S[t]=s|X)
         """
         T = len(obss)
         self._ini_state_stat = self._ini_state_stat + g1[0]
