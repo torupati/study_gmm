@@ -1,5 +1,6 @@
-from study_gmm.sample_generator import generate_markov_process
-from hmm import HMM
+from study_gmm.sample_generator import sampling_from_hmm
+from study_gmm.sample_generator import sample_markov_process
+from study.hmm import HMM
 import numpy as np
 
 
@@ -12,6 +13,6 @@ def test_generate_markov_process():
     state_tran = np.array([[0.1, 0.9],
                             [0.1, 0.9]])
     np.random.seed(1)
-    s = generate_markov_process(10, _init_state, state_tran)
+    s = sample_markov_process(10, _init_state, state_tran)
     assert s == [0, 1, 0, 1, 1, 0, 1, 1, 1, 1]
     print(s)
