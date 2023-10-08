@@ -353,20 +353,23 @@ def hmm_baum_welch(hmm, obss_seqs):
         obss_seqs (_type_): _description_
     """
     itr_count = 0
-    loglikleihood_history={'step':[], 'log_liklihood':[]}
+    ll_history={'step':[], 'log_likelihood':[]}
     prev_likelihood = np.nan
-    while itr_count < 100:
+    while itr_count < 1000:
         for x in obss_seqs:
             _gamma, _gzai, tll = hmm.forward_backward_algorithm_linear(x)
             hmm.push_sufficient_statistics(x,_gamma,_gzai)
         total_likelihood = hmm.update_parameters()
         print("itr {} E[logP(X)]={}".format(itr_count, total_likelihood/len(obss_seqs)))
+        ll_history['step'].append(itr_count)
+        ll_history['log_likelihood'].append(total_likelihood)
         #print('------ after Baum welch trianing ------')
         #print(f'hmm={hmm}')
         if itr_count > 0:
             assert prev_likelihood <= total_likelihood
         prev_likelihood = total_likelihood
         itr_count += 1
+    return ll_history
 
 
 def print_state_obs(x, st):
