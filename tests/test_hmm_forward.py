@@ -24,29 +24,49 @@ def test_forward_backward():
         [0.1, 0.45, 0.00, 0.45]])
     print(f"hmm={hmm}")
 
+    state_name = ['A dominant', 'B dominant', 'Transient']
+    state_labels = ['A boom', 'B boom', 'Trans.']
+    names = ['A', 'B', 'C', 'D']
+    fig, axs = fig, axs = plt.subplots(1, M, figsize=(9, 3), sharey=True)
+    for b, st_name, ax in zip(hmm.obs_prob, state_name, axs):
+        print(b)
+        ax.bar(names, b, alpha=0.75)
+        ax.set_title(st_name)
+        ax.set_ylim([0, 1.0])
+    fig.savefig('hmm_outprob_dist.png')
+
     obs = [0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 3, 2, 2, 2, 3, 2, 2, 1, 3, 3, 1, 1, 3, 0, 0, 0, 0]
     #np.random.seed(0)
     #st_orig, obs = sampling_from_hmm([10], hmm)
     print("observations({})={}".format(len(obs), obs))
     
-    fig, axes = plt.subplots(2, 1)
+    fig, axes = plt.subplots(3, 1)
+
+    obsprob = hmm.calculate_prob(obs)
+    _fwd, _fwd_scale = hmm.forward_algorithm(obsprob)
+    print('fwd', _fwd)
+    print('fwd_scale.shape=', _fwd_scale.shape)
+    plot_gamma(axes[0], _fwd, state_labels)
+    axes[0].set_title('Forward')
+
 
     _gamma, _qsi, _logprob = hmm.forward_backward_algorithm_linear(obs)
     print('gamma', _gamma)
     print('qsi', _qsi)
     print(_logprob)
     #assert -11.524219471588987 
-    plot_gamma(axes[0], _gamma)
-    axes[0].set_title('Forward-Backward')
+    plot_gamma(axes[1], _gamma, state_labels)
+    axes[1].set_title('Forward-Backward')
 
     _gamma, _qsi, _logprob = hmm.forward_viterbi(obs)
     print('gamma', _gamma)
     print('qsi', _qsi)
     print(_logprob)
     #assert -11.524219471588987
-    axes[1].set_title('Viterbi search') 
-    plot_gamma(axes[1],_gamma)
+    axes[2].set_title('Viterbi search') 
+    plot_gamma(axes[2],_gamma, state_labels)
     
+
     fig.savefig('test_gamma.png')
  
 #    st, ll = hmm.viterbi_search(obs)
