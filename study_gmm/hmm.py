@@ -6,6 +6,8 @@ from numpy import zeros, log, array
 from numpy import ndarray
 from typing import List, Tuple
 import json
+import pickle
+from os import path, makedirs
 
 eps = 1.0E-128
 
@@ -90,7 +92,6 @@ class HMM:
         """
 
         T = len(obss)
-
         # Note that this implementation (keeping all observation of each state, each time step) is naieve because
         # it is not necessary to keep at the same time and memory exhasting.
         # (1) log P(x[t]|s[t]) is only required at time step t in viterbi search
@@ -346,23 +347,44 @@ def hmm_viterbi_training(hmm, obss_seqs):
     return training_history
 
 def hmm_baum_welch(hmm, obss_seqs):
-    """
+    """HMM training using EM algorithm.
 
     Args:
         hmm (_type_): _description_
         obss_seqs (_type_): _description_
     """
     itr_count = 0
-    ll_history={'step':[], 'log_likelihood':[]}
+    _save_model = True
+    outdir = 'models/checkpoints/'
+    if _save_model:
+        makedirs(outdir, exist_ok=True)
+    ll_history={'step':[], 'log_likelihood':[], 'total_obs_num': [], 'total_seq_num': []}
     prev_likelihood = np.nan
     while itr_count < 1000:
+        total_obs_num = 0
         for x in obss_seqs:
-            _gamma, _gzai, tll = hmm.forward_backward_algorithm_linear(x)
-            hmm.push_sufficient_statistics(x,_gamma,_gzai)
+            _gamma, _xi, tll = hmm.forward_backward_algorithm_linear(x)
+            hmm.push_sufficient_statistics(x, _gamma, _xi)
+            total_obs_num += len(x)
         total_likelihood = hmm.update_parameters()
         print("itr {} E[logP(X)]={}".format(itr_count, total_likelihood/len(obss_seqs)))
         ll_history['step'].append(itr_count)
         ll_history['log_likelihood'].append(total_likelihood)
+        ll_history['total_obs_num'].append(total_obs_num)
+        ll_history['total_seq_num'].append(len(obss_seqs))
+        # save model
+        if _save_model and itr_count % 10 == 0:
+            ckpt_file = path.join(outdir, f'hmm_checkpoint_{itr_count:06d}.ckpt')
+            with open(ckpt_file, 'wb') as f:
+                pickle.dump({'model': hmm,
+                             'model_type': 'HMM',
+                             'total_likelihood': total_likelihood,
+                             'total_sequence_num': len(obss_seqs),
+                             'total_obs_num': total_obs_num,
+                             'iteration': itr_count},
+                        f)
+                print(ckpt_file)
+
         #print('------ after Baum welch trianing ------')
         #print(f'hmm={hmm}')
         if itr_count > 0:
@@ -377,57 +399,9 @@ def print_state_obs(x, st):
         print(f't={i} s={st[i]} x={x[i]}')
 
 
-def test_viterbi_training():
-    training_data = [\
-        [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 2, 3],
-        [0, 0, 0, 1, 1, 2, 2, 2, 3, 3],
-        [1, 0, 1, 1, 2, 4, 3, 0, 1],
-        [2, 0, 1, 1, 1, 2, 3, 2, 1, 1]]
-    #print("N={}".format(len(training_data))) 
-    M = 2
-    D = 5
-    hmm = HMM(M, D)
-    hmm.init_state = np.array([0.5, 0.5])
-    hmm.state_tran = np.array([[0.5, 0.5],
-                               [0.5, 0.5]])
-    hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
-            [0.00, 0.1, 0.4, 0.4, 0.1]])
-
-    hmm.randomize_parameter()
-    print(f"hmm={hmm}")
-    hist = hmm_viterbi_training(hmm, training_data)
-    print(f"hmm={hmm}")
-    for i in range(len(hist['step'])):
-        print(f"itr={hist['step'][i]} {hist['log_likelihood'][i]}")
 
 
-def test_baum_welch():
-#   np.random.seed(3)
-    training_data = [\
-        [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 2, 3],
-        [0, 0, 0, 1, 1, 2, 2, 2, 3, 3],
-        [1, 0, 1, 1, 2, 4, 3, 0, 1],
-        [2, 0, 1, 1, 1, 2, 3, 2, 1, 1]]
-    #print("N={}".format(len(training_data))) 
-    M = 2
-    D = 5
-    hmm = HMM(M, D)
-    hmm.init_state = np.array([0.5, 0.5])
-    hmm.state_tran = np.array([[0.9, 0.1],
-                               [0.5, 0.5]])
-    hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
-            [0.00, 0.1, 0.4, 0.4, 0.1]])
 
-    hmm.randomize_parameter()
-    print(f"hmm={hmm}")
-    hmm_baum_welch(hmm, training_data)
-    print(f"hmm={hmm}")
+#if __name__=='__main__':
+#    ...
 
-
-if __name__=='__main__':
-    #test_viterbi_search()
-    #for i in range(100):
-    #    test_viterbi_training()
-    for i in range(100):
-        test_baum_welch()
-    #test_baum_welch()
