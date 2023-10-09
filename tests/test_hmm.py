@@ -62,5 +62,48 @@ def test_viterbi_search2():
         print(counts, total_counts)
 #    print( viterbi_path(priors, transmat, obslik, scaled=False, ret_loglik=True) )#=> (array([0, 1, 1, 1, 0]), -8.0120386579275227)
 
-#test_viterbi_search()
-test_viterbi_search2()
+def test_viterbi_training():
+    training_data = [\
+        [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 2, 3],
+        [0, 0, 0, 1, 1, 2, 2, 2, 3, 3],
+        [1, 0, 1, 1, 2, 4, 3, 0, 1],
+        [2, 0, 1, 1, 1, 2, 3, 2, 1, 1]]
+    #print("N={}".format(len(training_data))) 
+    M = 2
+    D = 5
+    hmm = HMM(M, D)
+    hmm.init_state = np.array([0.5, 0.5])
+    hmm.state_tran = np.array([[0.5, 0.5],
+                               [0.5, 0.5]])
+    hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
+            [0.00, 0.1, 0.4, 0.4, 0.1]])
+
+    hmm.randomize_parameter()
+    print(f"hmm={hmm}")
+    hist = hmm_viterbi_training(hmm, training_data)
+    print(f"hmm={hmm}")
+    for i in range(len(hist['step'])):
+        print(f"itr={hist['step'][i]} {hist['log_likelihood'][i]}")
+
+def test_baum_welch():
+#   np.random.seed(3)
+    training_data = [\
+        [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 2, 3],
+        [0, 0, 0, 1, 1, 2, 2, 2, 3, 3],
+        [1, 0, 1, 1, 2, 4, 3, 0, 1],
+        [2, 0, 1, 1, 1, 2, 3, 2, 1, 1]]
+    #print("N={}".format(len(training_data))) 
+    M = 2
+    D = 5
+    hmm = HMM(M, D)
+    hmm.init_state = np.array([0.5, 0.5])
+    hmm.state_tran = np.array([[0.9, 0.1],
+                               [0.5, 0.5]])
+    hmm.obs_prob = np.array([[0.5, 0.2, 0.2, 0.1, 0.0],
+            [0.00, 0.1, 0.4, 0.4, 0.1]])
+
+    hmm.randomize_parameter()
+    print(f"hmm={hmm}")
+    hmm_baum_welch(hmm, training_data)
+    print(f"hmm={hmm}")
+
