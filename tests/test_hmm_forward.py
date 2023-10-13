@@ -13,7 +13,7 @@ def test_forward_backward():
     M = 3
     D = 4
     hmm = HMM(M, D)
-    hmm.init_state = np.array([0.5, 0.5, 0.0])
+    hmm.init_state = np.array([0.34, 0.33, 0.33])
     hmm._log_init_state = np.log(hmm.init_state)
     hmm.state_tran = np.array([[0.60, 0.35, 0.05],\
                                [0.01, 0.60, 0.39],
@@ -24,8 +24,8 @@ def test_forward_backward():
         [0.1, 0.45, 0.00, 0.45]])
     print(f"hmm={hmm}")
 
-    state_name = ['A dominant', 'B dominant', 'Transient']
-    state_labels = ['A boom', 'B boom', 'Trans.']
+    state_name = ['A dominant', 'C dominant', 'Transient']
+    state_labels = ['A boom', 'C boom', 'Trans.']
     names = ['A', 'B', 'C', 'D']
     fig, axs = fig, axs = plt.subplots(1, M, figsize=(9, 3), sharey=True)
     for b, st_name, ax in zip(hmm.obs_prob, state_name, axs):
@@ -33,6 +33,7 @@ def test_forward_backward():
         ax.bar(names, b, alpha=0.75)
         ax.set_title(st_name)
         ax.set_ylim([0, 1.0])
+        ax.grid(True)
     fig.savefig('hmm_outprob_dist.png')
 
     obs = [0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 3, 2, 2, 2, 3, 2, 2, 1, 3, 3, 1, 1, 3, 0, 0, 0, 0]
@@ -50,9 +51,9 @@ def test_forward_backward():
     axes[0].set_title('Forward')
 
 
-    _gamma, _qsi, _logprob = hmm.forward_backward_algorithm_linear(obs)
+    _gamma, _xi, _logprob = hmm.forward_backward_algorithm_linear(obs)
     print('gamma', _gamma)
-    print('qsi', _qsi)
+    print('xi', _xi)
     print(_logprob)
     #assert -11.524219471588987 
     plot_gamma(axes[1], _gamma, state_labels)
@@ -60,7 +61,7 @@ def test_forward_backward():
 
     _gamma, _qsi, _logprob = hmm.forward_viterbi(obs)
     print('gamma', _gamma)
-    print('qsi', _qsi)
+    print('xi', _qsi)
     print(_logprob)
     #assert -11.524219471588987
     axes[2].set_title('Viterbi search') 

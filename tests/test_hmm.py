@@ -1,4 +1,4 @@
-from study_gmm.hmm import HMM, print_state_obs
+from study_gmm.hmm import HMM, print_state_obs, hmm_baum_welch, hmm_viterbi_training
 from study_gmm.sample_generator import sampling_from_hmm
 import numpy as np
 
@@ -62,6 +62,26 @@ def test_viterbi_search2():
         print(counts, total_counts)
 #    print( viterbi_path(priors, transmat, obslik, scaled=False, ret_loglik=True) )#=> (array([0, 1, 1, 1, 0]), -8.0120386579275227)
 
+def test_viterbi_search3():
+    M = 3
+    D = 4
+    hmm = HMM(M, D)
+    hmm.init_state = np.array([0.50, 0.50, 0.00])
+    hmm._log_init_state = np.log(hmm.init_state)
+    hmm.state_tran = np.array([[0.60, 0.35, 0.05],\
+                               [0.01, 0.60, 0.39],
+                               [0.30, 0.00, 0.70]])
+    hmm.obs_prob = np.array([\
+        [0.70, 0.10, 0.10, 0.10],
+        [0.01, 0.09, 0.80, 0.10],
+        [0.1, 0.45, 0.00, 0.45]])
+
+    obs = [0, 1, 1]
+    st, ll = hmm.viterbi_search(obs)
+    print(st)
+    input()
+
+
 def test_viterbi_training():
     training_data = [\
         [0, 1, 0, 0, 1, 2, 1, 1, 2, 2, 2, 3],
@@ -104,6 +124,6 @@ def test_baum_welch():
 
     hmm.randomize_parameter()
     print(f"hmm={hmm}")
-    hmm_baum_welch(hmm, training_data)
+    #hmm_baum_welch(hmm, training_data)
     print(f"hmm={hmm}")
 

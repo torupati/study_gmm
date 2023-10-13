@@ -6,7 +6,7 @@ todo: full covariance
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import ndarray, random, uint8 # definition, modules
-from numpy import array, argmin, dot, ones, zeros, cov, savez # functions
+from numpy import array, argmin, dot, ones, zeros, cov # functions
 from math import floor
 from scipy.stats import multivariate_normal
 import pickle

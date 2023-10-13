@@ -125,6 +125,7 @@ class HMM:
                 # calculate path from each s[t-1]. _probs is array
                 _trellis_bp[j,t] = _probs.argmax()
                 _trellis_prob[j,t] = _probs[_trellis_bp[j,t]]
+                #print(f'back pointer[t={t}, s={j}]={_trellis_bp[j,t]}')
             #print('t=', t)
             #print('trellis=', _trellis_prob[:,t])
         #print(_trellis_prob)
