@@ -1,6 +1,10 @@
 # 
 
 
+```
+$ petry run pytest -s -v tests
+```
+
 # Known Issues
 
 - gmm.py

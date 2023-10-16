@@ -137,8 +137,9 @@ class GaussianMixtureModel():
 
     def split_Gaussian(self):
         """
-        
+        Not implemented yet.
         """
+        raise Excdeption('not implemented')
         gauss_vars = {}
         for m in self._M:
             var = np.sum(np.diag(self.Sigma[m,:,:]))

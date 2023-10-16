@@ -78,8 +78,6 @@ def test_viterbi_search3():
 
     obs = [0, 1, 1]
     st, ll = hmm.viterbi_search(obs)
-    print(st)
-    input()
 
 
 def test_viterbi_training():
