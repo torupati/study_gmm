@@ -347,7 +347,7 @@ def hmm_viterbi_training(hmm, obss_seqs):
         itr_count += 1
     return training_history
 
-def hmm_baum_welch(hmm, obss_seqs):
+def hmm_baum_welch(hmm, obss_seqs, itr_limit:int = 100) -> dict:
     """HMM training using EM algorithm.
 
     Args:
@@ -361,7 +361,7 @@ def hmm_baum_welch(hmm, obss_seqs):
         makedirs(outdir, exist_ok=True)
     ll_history={'step':[], 'log_likelihood':[], 'total_obs_num': [], 'total_seq_num': []}
     prev_likelihood = np.nan
-    while itr_count < 1000:
+    while itr_count < itr_limit:
         total_obs_num = 0
         for x in obss_seqs:
             _gamma, _xi, tll = hmm.forward_backward_algorithm_linear(x)
