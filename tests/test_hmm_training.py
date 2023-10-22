@@ -58,7 +58,8 @@ def test_forward_backward():
     ax.grid(True)
 
     ax.set_xlim((-2, len(ll_history['step'])))
-    fig.set_tight_layout(True)
+    #fig.set_tight_layout(True)
+    fig.set_layout_engine('tight')
     out_figname = 'out_hmm_training_loglikelihood.png'
 
     fig.savefig(out_figname)

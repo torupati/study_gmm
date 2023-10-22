@@ -50,7 +50,6 @@ def test_forward_backward():
     plot_gamma(axes[0], _fwd, state_labels)
     axes[0].set_title('Forward')
 
-
     _gamma, _xi, _logprob = hmm.forward_backward_algorithm_linear(obs)
     print('gamma', _gamma)
     print('xi', _xi)
@@ -59,15 +58,14 @@ def test_forward_backward():
     plot_gamma(axes[1], _gamma, state_labels)
     axes[1].set_title('Forward-Backward')
 
-    _gamma, _qsi, _logprob = hmm.forward_viterbi(obs)
+    _gamma, _xi, _logprob = hmm.forward_viterbi(obs)
     print('gamma', _gamma)
-    print('xi', _qsi)
+    print('xi', _xi)
     print(_logprob)
     #assert -11.524219471588987
     axes[2].set_title('Viterbi search') 
     plot_gamma(axes[2],_gamma, state_labels)
     
-
     fig.savefig('test_gamma.png')
  
 #    st, ll = hmm.viterbi_search(obs)
