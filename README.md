@@ -1,16 +1,23 @@
-# 
+# PYEMALGO
 
+This is a deliverable of my self-learning project.
+EM algorithm for GMM and HMM is carefully formulated and implemented according to the very classical manners.
+
+
+## Run with poetry
+
+First you must have poetry in your environment. If not, please install it.
 
 ```
-$ petry run pytest -s -v tests
+$ poetry install
 ```
 
-# Known Issues
+is prepare the python libraries required in this project.
 
-- gmm.py
-  Large coavariance values causes np.linalg.LinAlgError about singularity.
-  Theoretically, this computational problem can be escaped by using log-scale computation.
+```
+$ peotry run pytest -s -v tests
+```
 
-- Inital varialbes of models are not appropreate.
 
-- Evaluation by estimated states of HMMs.
+# References
+
