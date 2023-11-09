@@ -6,7 +6,7 @@ todo: full covariance
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import ndarray, random, uint8 # definition, modules
-from numpy import array, argmin, dot, ones, zeros, cov # functions
+from numpy import array, argmin, dot, ones, zeros, cov, savez # functions
 from math import floor
 from scipy.stats import multivariate_normal
 import pickle
@@ -183,9 +183,19 @@ def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
 
 
 def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
+    """_summary_
+
+    Args:
+        X (np.ndarray): vector samples (N, D)
+        mu_init (np.ndarray): initial mean vectors(K, D)
+        max_it (int, optional): Iteration steps. Defaults to 20.
+
+    Returns:
+        _type_: _description_
+    """
 
     K = mu_init.shape[0]
-    Dim = X.shape[0]
+    Dim = X.shape[1]
     kmeansparam = KmeansCluster(K, Dim)
     kmeansparam.Mu = mu_init
     R = None
@@ -226,8 +236,7 @@ def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
     fig0.savefig("iteration.png")
 
 
-    print("centroid:", np.round(kmeansparam.Mu, 5)),
-
+    print("centroid:", np.round(kmeansparam.Mu, 5))
     print(kmeansparam.distortion_measure(X, kmeansparam.get_alignment(X)))
 
     fig1, ax = plt.subplots(1, 1, figsize=(8,4))
@@ -251,9 +260,8 @@ def main(args):
         param = data['model_param']
         mu_init = param.Mu
         
-    Dim = X.shape[1]
-
     if args.num_cluster > 0:
+        Dim = X.shape[1]
         random.seed(args.random_seed)
         mu_init = random.randn(args.num_cluster, Dim)
 
@@ -270,7 +278,6 @@ def set_parser():
     parser.add_argument('-k', '--num_cluster', type=int,
                         help='number of cluster. centroid are initialized by randn', default=0)
     return parser
-
 
 if __name__ == '__main__':
     parser = set_parser()
