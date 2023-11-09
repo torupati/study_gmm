@@ -20,14 +20,17 @@ class KmeansCluster():
         """_summary_
 
         Args:
-            K (int): number of cluster
-            D (int): dimension of smaples
+            K (int): number of cluster. Fixed.
+            D (int): dimension of smaples. Fixed.
+        
+        Note if you want to change the number of clusters, new instance with desired cluster numbers should be created.
         """
         self._K = K
         self._D = D
         self.Mu = np.random.randn(K, D) #centroid
         self.Sigma = np.ones((K, D, D))
         self.Pi = np.ones(K) / K # Cumulative probability
+        self._use_fullcov = False
 
     @property
     def K(self) -> int:
@@ -55,14 +58,15 @@ class KmeansCluster():
         assert len(val) == self._D
         self.Mu[k,:] = val
 
-    def distortion_measure(self, x:ndarray, r:ndarray) -> float:
-        """
-        Calculate distortion measure.
+    def distortion_measure(self, x:ndarray, r:ndarray) -> float:        
+        """Calculate distortion measure.
 
-        Args
-        ----
-        x, training samples(N,D)
-        r, alignment of sample(N, K)
+        Args:
+            x (ndarray): input samples (N,D)
+            r (ndarray): sample alignment to clusters (N,K)
+
+        Returns:
+            float: disotrion (average per sample). If N = 0, 0.0 is returned.
         """
         J = 0.0
         n_sample = x.shape[0]
@@ -77,13 +81,11 @@ class KmeansCluster():
     def get_alignment(self, x:ndarray) -> ndarray:
         """
         Hard alocation of each sample to a cluster (or Gaussians)
-        Args
-        ----
-        x[N, D]: samples
-        mu[K, D]: centroids
-        Returns
-        -------
-        gamma[N,K]: n-th sample, k-th cluster
+
+        Args:
+            x (ndarray): input samples (N,D)
+        Returns:
+            r (ndarray): sample alignment to clusters (N,K)
         """
         if len(x.shape) != 2:
             raise Exception("dimension error")
@@ -99,13 +101,11 @@ class KmeansCluster():
     def get_soft_alignment(self, x:ndarray) -> ndarray:
         """
         Soft alocation of each sample to Gaussians. E-step of EM algorithm to GMM.
-        Args
-        ----
-        x[N, D]: samples
-        mu[K, D]: centroids
-        Returns
-        -------
-        gamma[N,K]: n-th sample, k-th cluster
+
+        Args:
+            x (ndarray): input samples (N,D)
+        Returns:
+            r (ndarray): sample alignment to clusters (N,K)
         """
         if len(x.shape) != 2:
             raise Exception("dimension error")
@@ -137,8 +137,6 @@ class KmeansCluster():
             # divied by number of aligned sample to the k-th cluster
         return _mu
 
-#X_col = ['cornflowerblue', "orange", 'black', 'white', 'red']
-
 
 def plot_training_samples(ax, x):
     X_range_x1 = [min(x[:,0]), max(x[:,0])]
@@ -154,10 +152,22 @@ def plot_training_samples(ax, x):
     ax.set_ylabel("$x_2$")
     ax.set_aspect("equal")
 
+
+def plot_distorion_history(cost_history: list):
+    fig, ax = plt.subplots(1, 1, figsize=(8,4))
+    ax.plot(range(0, len(cost_history)), cost_history, color='black', linestyle='-', marker='o')
+    ax.set_yscale("log")
+    ax.set_xlim([0,len(cost_history)])
+    ax.grid(True)
+    ax.set_xlabel("Iteration Step")
+    ax.set_ylabel("Loss")
+    return fig
+
+
 def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
+    #X_col = ['cornflowerblue', "orange", 'black', 'white', 'red']
     K = mu.shape[0]
     for k in range(K):
-        # データ分布の描写
         ax.plot(x[r[:, k] == 1, 0], x[r[:, k] == 1, 1],
                 marker='.',
                 #markerfacecolor=X_col[k],
@@ -182,8 +192,8 @@ def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
     ax.set_aspect("equal")
 
 
-def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
-    """_summary_
+def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20, save_ckpt:bool = False):
+    """Run k-means clustering.
 
     Args:
         X (np.ndarray): vector samples (N, D)
@@ -193,12 +203,11 @@ def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
     Returns:
         _type_: _description_
     """
-
     K = mu_init.shape[0]
     Dim = X.shape[1]
     kmeansparam = KmeansCluster(K, Dim)
     kmeansparam.Mu = mu_init
-    R = None
+    R = None # alignmnet
     cost_history = []
     fig0, axes0 = plt.subplots(1, 4, figsize=(16, 4))
     for it in range(0, max_it):
@@ -224,29 +233,19 @@ def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20):
         kmeansparam.Mu = kmeansparam.get_centroid(X, R)
         loss = kmeansparam.distortion_measure(X, R)
         cost_history.append(loss)
-        ckpt_file = f"kmeans_itr{it}.ckpt"
-        with open(ckpt_file, 'wb') as f:
-            pickle.dump({'model': kmeansparam,
+        if save_ckpt:
+            ckpt_file = f"kmeans_itr{it}.ckpt"
+            with open(ckpt_file, 'wb') as f:
+                pickle.dump({'model': kmeansparam,
                     'loss': loss,
                     'iteration': it,
                     'alignment': R}, f)
             print(ckpt_file)
         # convergence check must be done
-
     fig0.savefig("iteration.png")
-
 
     print("centroid:", np.round(kmeansparam.Mu, 5))
     print(kmeansparam.distortion_measure(X, kmeansparam.get_alignment(X)))
-
-    fig1, ax = plt.subplots(1, 1, figsize=(8,4))
-    ax.plot(range(0, len(cost_history)), cost_history, color='black', linestyle='-', marker='o')
-    ax.set_yscale("log")
-    ax.set_xlim([0,len(cost_history)])
-    ax.grid(True)
-    ax.set_xlabel("Iteration Step")
-    ax.set_ylabel("Loss")
-    fig1.savefig("distortion.png")
     return kmeansparam, cost_history
 
 
@@ -265,7 +264,22 @@ def main(args):
         random.seed(args.random_seed)
         mu_init = random.randn(args.num_cluster, Dim)
 
-    kmeans_clustering(X, mu_init)
+    kmeansparam, cost_history = kmeans_clustering(X, mu_init)
+
+    out_pngfile = "distortion.png"
+    fig = plot_distorion_history(cost_history)
+    fig.savefig(out_pngfile)
+
+    R = kmeansparam.get_alignment(X)
+    out_file = 'out_kmeans.pickle'
+    with open(out_file, 'wb') as f:
+        pickle.dump({'model': kmeansparam,
+                    'history': cost_history,
+                    'iteration': len(cost_history),
+                    'alignment': R},
+                    f)
+    print(out_file)
+    print(sum(R==1))
 
 
 def set_parser():
