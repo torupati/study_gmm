@@ -15,22 +15,50 @@ import argparse
 class KmeansCluster():
     """Definition of clusters for K-means altorithm
     """
+    COV_NONE = 0
+    COV_FULL = 1
+    COV_DIAG = 2
 
-    def __init__(self, K:int, D:int):
+    TRAIN_VAR_OUTSIDE = 0
+    TRAIN_VAR_INSIDE = 1
+
+    def __init__(self, K:int, D:int, **kwargs):
         """_summary_
 
         Args:
             K (int): number of cluster. Fixed.
             D (int): dimension of smaples. Fixed.
-        
+            covariance_mode(str): "none"(default), "diag" or "full"
         Note if you want to change the number of clusters, new instance with desired cluster numbers should be created.
         """
         self._K = K
         self._D = D
         self.Mu = np.random.randn(K, D) #centroid
-        self.Sigma = np.ones((K, D, D))
-        self.Pi = np.ones(K) / K # Cumulative probability
-        self._use_fullcov = False
+        #self.Pi = np.ones(K) / K # Cumulative probability
+        print('kwargs', kwargs)
+
+        if kwargs.get('covariance_mode','none') == 'full':
+            self._cov_mode = self.COV_FULL
+            self.Sigma = np.ones((K, D, D))
+        elif kwargs.get('covariance_mode','none') == 'diag':
+            self._cov_mode = self.COV_DIAG
+            self.Sigma = np.ones((K,D))
+        elif kwargs.get('covariance_mode','none') == 'none':
+            self._cov_mode = self.COV_NONE
+            self.Sigma = None
+        else:
+            raise Exception('invalid covariance mode')
+
+        print(kwargs.get('trainvars','outside') == 'inside')
+        if kwargs.get('trainvars','outside') == 'outside':
+            self._train_mode = KmeansCluster.TRAIN_VAR_OUTSIDE
+        elif kwargs.get('trainvars','outside') == 'inside':
+            self._train_mode = KmeansCluster.TRAIN_VAR_INSIDE
+            self._loss = 0.0
+            self._X0_sum = np.zeros([K])   
+            self._X1_sum = np.zeros([K, D])
+        else:
+            raise Exception('invalid training variable mode.')
 
     @property
     def K(self) -> int:
@@ -52,6 +80,15 @@ class KmeansCluster():
 
     def __repr__(self):
         return '{n} (K={k} D={d})'.format(n=self.__class__.__name__, k=self._K, d= self._D)
+
+    @property
+    def covariance_mode(self) -> str:
+        return self._cov_mode.name
+
+    @property
+    def train_vars_mode(self) -> str:
+        print('train_var_mode=', KmeansCluster.TRAIN_VAR_INSIDE, self._train_mode)
+        self._train_mode
 
     def update_Mu(self, k, val):
         assert k < self._K
@@ -75,7 +112,6 @@ class KmeansCluster():
         for n in range(n_sample):
             dist = [sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)]
             J = J + dot(r[n, :], dist)
-        #   J = J + r[n, k] * ((x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2)
         return J/n_sample
 
     def get_alignment(self, x:ndarray) -> ndarray:
@@ -118,7 +154,7 @@ class KmeansCluster():
         return r
 
     def get_centroid(self, x:ndarray, r:ndarray) -> ndarray:
-        """Calculate centroid from given alignment
+        """Calculate centroid from given alignment.
 
         Args:
             x (ndarray): input samples (N,D)
@@ -136,6 +172,42 @@ class KmeansCluster():
             _mu[k,:] = _mu[k,:] / sum(r[:,k])
             # divied by number of aligned sample to the k-th cluster
         return _mu
+
+    def PushSample(self, x: np.ndarray) -> bool:
+        """_summary_
+
+        Args:
+            x (ndarray): traiing sample (D,)
+
+        Returns:
+            bool: _description_
+        """
+        #print('train_var_mode=', KmeansCluster.TRAIN_VAR_INSIDE, self._train_mode)
+        if self._train_mode != self.TRAIN_VAR_INSIDE:
+            return False
+        costs = [ sum(v*v for v in x - self.Mu[k, :]) for k in range(self._K)]
+        k_min = argmin(costs)
+        self._loss += costs[k_min]
+        self._X0_sum[k_min] += 1
+        self._X1_sum[k_min,:] += x
+        #print(k_min, self._X0_sum)
+        return True
+
+    def ClearTrainigVariables(self):
+        if self._train_mode != self.TRAIN_VAR_INSIDE:
+            return
+        self._loss = 0.0
+        self._X0_sum = np.zeros([self._K])
+        self._X1_sum = np.zeros([self._K, self._D])
+
+    def UpdateParameters(self) -> float:
+        if self._train_mode != self.TRAIN_VAR_INSIDE:
+            return
+        for k in range(self._K):
+            if self._X0_sum[k] == 0:
+                continue
+            self.Mu[k,:] = self._X1_sum[k,:] / self._X0_sum[k]
+        return self._loss
 
 
 def plot_training_samples(ax, x):
@@ -190,6 +262,36 @@ def show_prm(ax, x, r, mu, kmeans_param_ref:dict = {}):
     ax.set_ylim(X_range_x2)
     ax.grid(True)
     ax.set_aspect("equal")
+
+
+
+def train_light(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20, save_ckpt:bool = False):
+    """Run k-means clustering.
+
+    Args:
+        X (np.ndarray): vector samples (N, D)
+        mu_init (np.ndarray): initial mean vectors(K, D)
+        max_it (int, optional): Iteration steps. Defaults to 20.
+
+    Returns:
+        _type_: _description_
+    """
+    K = mu_init.shape[0]
+    N, Dim = X.shape
+    kmeansparam = KmeansCluster(K, Dim, trainvars='inside')
+    kmeansparam.Mu = mu_init
+    cost_history = []
+    for it in range(0, max_it):
+        for n in range(N):
+            kmeansparam.PushSample(X[n,:])
+        loss = kmeansparam.UpdateParameters()
+        kmeansparam.ClearTrainigVariables()
+        #loss = kmeansparam.distortion_measure(X, R)
+        print(loss/N)
+        print(kmeansparam.Mu)
+        cost_history.append(loss)
+        input()
+    return kmeansparam, cost_history
 
 
 def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20, save_ckpt:bool = False):
@@ -265,6 +367,7 @@ def main(args):
         mu_init = random.randn(args.num_cluster, Dim)
 
     kmeansparam, cost_history = kmeans_clustering(X, mu_init)
+    #kmeansparam, cost_history = train_light(X, mu_init)
 
     out_pngfile = "distortion.png"
     fig = plot_distorion_history(cost_history)
