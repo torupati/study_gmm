@@ -7,6 +7,7 @@ from numpy import ndarray, random, uint8 # definition, modules
 from numpy import array, argmin, dot, ones, zeros, cov, savez # functions
 from scipy.stats import multivariate_normal
 import pickle
+from tqdm import tqdm
 import argparse
 
 class KmeansCluster():
@@ -293,13 +294,16 @@ def kmeans_clustering(X:np.ndarray, mu_init:np.ndarray, max_it:int = 20, save_ck
     Returns:
         _type_: _description_
     """
-    K = mu_init.shape[0]
-    N, Dim = X.shape
+    K, Dim = mu_init.shape
+    N, Dim2 = X.shape
+    if Dim != Dim2:
+        raise Exception('dimmension is not compatible.')
     kmeansparam = KmeansCluster(K, Dim, trainvars='inside')
     kmeansparam.Mu = mu_init
     cost_history = []
     alignment_history = []
-    for it in range(0, max_it):
+    pbar = tqdm(range(max_it), desc="kmeans", postfix="postfix", ncols=80)
+    for it in pbar:
         for n in range(N):
             kmeansparam.PushSample(X[n,:])
         loss, align_dist = kmeansparam.UpdateParameters()
