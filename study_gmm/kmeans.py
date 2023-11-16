@@ -2,8 +2,6 @@
 K-means clustering Implementation
 """
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import multivariate_normal
 import pickle
 from tqdm import tqdm
 import argparse
@@ -12,6 +10,7 @@ import logging
 import kmeans_plot
 
 logger = logging.getLogger(__name__)
+
 
 class KmeansCluster():
     """Definition of clusters for K-means altorithm
@@ -25,8 +24,9 @@ class KmeansCluster():
 
     DISTANCE_LINEAR_SCALE = 0
     DISTANCE_LOG_SCALE = 1
+    DISTANCE_KL_DIVERGENCE = 2
 
-    def __init__(self, K:int, D:int, **kwargs):
+    def __init__(self, K: int, D: int, **kwargs):
         """_summary_
 
         Args:
@@ -41,12 +41,13 @@ class KmeansCluster():
             Exception: wrong training variable mode input
 
         Note:
-        If you want to change the number of clusters, new instance with desired cluster numbers should be created.
+        If you want to change the number of clusters, new instance with desired
+        cluster numbers should be created.
         """
 
         self._K = K
         self._D = D
-        self.Mu = np.random.randn(K, D) #centroid
+        self.Mu = np.random.randn(K, D)  # centroid
         if kwargs.get('covariance_mode', 'diag') == 'diag':
             self._cov_mode = KmeansCluster.COV_DIAG
             self.Sigma = np.ones((K, D))
@@ -60,8 +61,8 @@ class KmeansCluster():
             raise Exception('invalid covariance mode')
 
         # define training variables
-        print(kwargs.get('trainvars','outside') == 'outside')
-        if kwargs.get('trainvars','outside') == 'outside':
+        print(kwargs.get('trainvars', 'outside') == 'outside')
+        if kwargs.get('trainvars', 'outside') == 'outside':
             self._train_mode = KmeansCluster.TRAIN_VAR_OUTSIDE
         elif kwargs['trainvars'] == 'inside':
             self._train_mode = KmeansCluster.TRAIN_VAR_INSIDE
@@ -71,7 +72,7 @@ class KmeansCluster():
             if self._cov_mode == KmeansCluster.COV_NONE:
                 self._X2 = None
             elif self._cov_mode == KmeansCluster.COV_FULL:
-                self._X2 = np.zeros([K,D,D])
+                self._X2 = np.zeros([K, D, D])
             elif self._cov_mode == KmeansCluster.COV_DIAG:
                 self._X2 = np.zeros([K, D])
         else:
@@ -81,6 +82,8 @@ class KmeansCluster():
             self._dist_mode = KmeansCluster.DISTANCE_LINEAR_SCALE
         elif kwargs['dist_mode'] == 'log':
             self._dist_mode = KmeansCluster.DISTANCE_LOG_SCALE
+        elif kwargs['dist_mode'] == 'kldiv':
+            self._dist_mode = KmeansCluster.DISTANCE_KL_DIVERGENCE
         else:
             raise Exception('invalid distance mode')
 
@@ -102,8 +105,17 @@ class KmeansCluster():
         """
         return self._D
 
+    @property
+    def DistanceType(self) -> str:
+        name_list =  {self.DISTANCE_LINEAR_SCALE: "linear", 
+                      self.DISTANCE_LOG_SCALE: "log",
+                      self.DISTANCE_KL_DIVERGENCE: "kldiv"}
+        return name_list[self._dist_mode]
+
     def __repr__(self):
-        return '{n} (K={k} D={d})'.format(n=self.__class__.__name__, k=self._K, d= self._D)
+        return '{n} K:{k} D:{d}'.format(n=self.__class__.__name__,
+                                          k=self._K, d=self._D)\
+                + ' dist={d2}'.format(d2=self.DistanceType)
 
     @property
     def covariance_mode(self) -> str:
@@ -113,7 +125,7 @@ class KmeansCluster():
     def train_vars_mode(self) -> str:
         return list(["outside", 'inside'])[self._train_mode]
 
-    def distortion_measure(self, x:np.ndarray, r:np.ndarray) -> float:
+    def distortion_measure(self, x: np.ndarray, r: np.ndarray) -> float:
         """Calculate distortion measure.
 
         Args:
@@ -128,10 +140,12 @@ class KmeansCluster():
         if n_sample == 0:
             return 0.0
         for n in range(n_sample):
-            if self._dist_mode == KmeansCluster.DIST_LINEARSCALE:
+            if self._dist_mode == KmeansCluster.DISTANCE_LINEAR_SCALE:
                 dist = [sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)]
-            elif self._dist_mode == KmeansCluster.DIST_LOGSCALE:
+            elif self._dist_mode == KmeansCluster.DISTANCE_LOG_SCALE:
                 dist = [sum(v*v for v in np.log(x[n, :]) - np.log(self.Mu[k, :])) for k in range(self._K)]
+            elif self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
+                dist = [KmeansCluster.KL_divergence(x[n, :], self.Mu[k, :]) for k in range(self._K)]
             J = J + np.dot(r[n, :], dist)
         return J/n_sample
 
@@ -149,29 +163,18 @@ class KmeansCluster():
         N = x.shape[0]
         r = np.zeros((N, self._K))
         for n in range(N):
-            r[n, np.argmin([ sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)])] = 1
+            if self._dist_mode == KmeansCluster.DISTANCE_LINEAR_SCALE:
+                costs = [sum([v*v for v in (x[n, :] - self.Mu[k, :])]) for k in range(self._K)]
+            elif self._dist_mode == KmeansCluster.DISTANCE_LOG_SCALE:
+                costs = [sum([v*v for v in (np.log(x[n, :]) - np.log(self.Mu[k, :]))]) for k in range(self._K)]
+            elif self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
+                costs = [KmeansCluster.KL_divergence(x[n, :], self.Mu[k, :]) for k in range(self._K)]
+            r[n, np.argmin(costs)] = 1
+
+            #r[n, np.argmin([ sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)])] = 1
             r[n, :] = r[n,:]/r[n,:].sum()
             #wk = [(x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2 for k in range(K)]
             #r[n, argmin(wk)] = 1
-        return r
-
-    def get_soft_alignment(self, x: np.ndarray) -> np.ndarray:
-        """
-        Soft alocation of each sample to Gaussians. E-step of EM algorithm to GMM.
-
-        Args:
-            x (ndarray): input samples (N,D)
-        Returns:
-            r (ndarray): sample alignment to clusters (N,K)
-        """
-        if len(x.shape) != 2:
-            raise Exception("dimension error")
-        N = x.shape[0]
-        r = np.zeros((N, self._K))
-        g = array([ self.Pi[k] * multivariate_normal(self.Mu[k, :], self.Sigma[k,:,:]).pdf(x) \
-            for k in range(self._K)]).transpose() # (N,K)
-        for n in range(N):
-            r[n,:] = r[n,:] / sum(r[n,:])
         return r
 
     def get_centroid(self, x: np.ndarray, r: np.ndarray) -> np.ndarray:
@@ -187,10 +190,10 @@ class KmeansCluster():
         #  mu[k, :] = np.sum_n(r[n, k] * x[n,:]) / sum_{n,k'}(r[n, k'])
         _mu = np.dot(r.transpose(), x)
         for k in range(self._K):
-            if sum(r[:,k]) < 0.01:
+            if sum(r[:, k]) < 0.01:
                 # this cluster has no sample aligned.
                 continue
-            _mu[k,:] = _mu[k,:] / sum(r[:,k])
+            _mu[k, :] = _mu[k, :] / sum(r[:, k])
             # divied by number of aligned sample to the k-th cluster
         return _mu
 
@@ -206,24 +209,33 @@ class KmeansCluster():
         if self._train_mode != self.TRAIN_VAR_INSIDE:
             raise Exception('train mode is not TRAIN_VAR_INSIDE.')
         if self._dist_mode == KmeansCluster.DISTANCE_LINEAR_SCALE:
-            costs = [ sum([v*v for v in (x - self.Mu[k, :])]) for k in range(self._K)]
+            costs = [sum([v*v for v in (x - self.Mu[k, :])]) for k
+                     in range(self._K)]
         elif self._dist_mode == KmeansCluster.DISTANCE_LOG_SCALE:
-            costs = [ sum([v*v for v in (np.log(x) - np.log(self.Mu[k, :]))]) for k in range(self._K)]
+            costs = [sum([v*v for v in (np.log(x) - np.log(self.Mu[k, :]))])
+                     for k in range(self._K)]
+        elif self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
+            costs = [KmeansCluster.KL_divergence(x, self.Mu[k, :]) for k
+                     in range(self._K)]
         if np.isinf(costs).any():
             if self._dist_mode == KmeansCluster.DISTANCE_LOG_SCALE:
                 print('x')
                 print('mu', self.Mu)
-                raise Exception(f'wrong input in distance computation x={np.log(x)} mu={np.log(self.Mu)} costs={costs}')
-            Exception(f'wrong input in distance computation x={x} mu={self.Mu} costs={costs}')
+                raise Exception(f'log(x)={np.log(x)}'
+                                + f' log(mu)={np.log(self.Mu)} costs={costs}')
+            Exception(f'wrong input in distance computation x={x} mu={self.Mu}'
+                      + f'costs={costs}')
 
         k_min = np.argmin(costs)
         self._loss += costs[k_min]
         self._X0[k_min] += 1
-        self._X1[k_min,:] += x
+        self._X1[k_min, :] += x
         if self._cov_mode == KmeansCluster.COV_DIAG:
-            self._X2[k_min,:] = (x * x)
+            self._X2[k_min, :] = (x * x)
         elif self._cov_mode == KmeansCluster.COV_FULL:
-            self._X2[k_min,:,:] = (x.reshape(self._D,1) * x.reshape(1, self._D)) # not checked.
+            # NOT checked.
+            self._X2[k_min, :, :] = (x.reshape(self._D, 1)
+                                     * x.reshape(1, self._D))
         return k_min
 
     def ClearTrainigVariables(self):
@@ -250,10 +262,34 @@ class KmeansCluster():
         for k in range(self._K):
             if self._X0[k] == 0:
                 continue
-            self.Mu[k,:] = self._X1[k,:] / self._X0[k]
-            if self._cov_mode in [KmeansCluster.COV_FULL, KmeansCluster.COV_DIAG]:
-                self.Sigma = self._X2 /self._X0[k]
+            self.Mu[k, :] = self._X1[k, :] / self._X0[k]
+            if self._cov_mode in [KmeansCluster.COV_FULL,
+                                  KmeansCluster.COV_DIAG]:
+                self.Sigma = self._X2 / self._X0[k]
+            if self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
+                self.Mu[k, :] = self.Mu[k, :] / np.sum(self.Mu[k, :])
         return self._loss, self._X0
+
+    @property
+    def loss(self) -> float:
+        return self._loss
+
+    @staticmethod
+    def KL_divergence(x: np.ndarray, y: np.ndarray, **kwargs) -> float:
+        """_summary_
+
+        Args:
+            x (np.ndarray): _description_
+            y (np.ndarray): _description_
+
+        Returns:
+            float: _description_
+        """
+        _x = x / np.sum(x)
+        _y = y / np.sum(y)
+        xy_diff = np.log(_x) - np.log(_y)
+        _kl_div = np.sum(_x * xy_diff)
+        return _kl_div
 
 
 def kmeans_clustering(X: np.ndarray, mu_init: np.ndarray, **kwargs):
@@ -272,25 +308,38 @@ def kmeans_clustering(X: np.ndarray, mu_init: np.ndarray, **kwargs):
     if Dim != Dim2:
         raise Exception('dimmension is not compatible.')
 
-    trrainvars = kwargs.get('trainvars', 20)
     max_it = kwargs.get('max_it', 20)
     save_ckpt = kwargs.get('save_ckpt', False)
     dist_mode = kwargs.get('dist_mode', 'linear')
 
-    kmeansparam = KmeansCluster(K, Dim, trainvars='inside', dist_mode=dist_mode)
+    kmeansparam = KmeansCluster(K, Dim, trainvars='inside',
+                                dist_mode=dist_mode)
+    logger.info('initialize: %s', str(kmeansparam))
     kmeansparam.Mu = mu_init
     cost_history = []
-    alignment_history = []
+    align_history = []
     pbar = tqdm(range(max_it), desc="kmeans", postfix="postfix", ncols=80)
     for it in pbar:
         for n in range(N):
-            kmeansparam.PushSample(X[n,:])
+            kmeansparam.PushSample(X[n, :])
         loss, align_dist = kmeansparam.UpdateParameters()
         kmeansparam.ClearTrainigVariables()
-        #print(loss/N, kmeansparam.Mu)
+        #  print(loss/N, kmeansparam.Mu)
         logger.info("iteration %d loss %f", it, loss/N)
         cost_history.append(loss)
-        alignment_history.append(align_dist)
+        align_history.append(align_dist)
+        # Convergence validation
+        if len(cost_history) > 1:
+            cost_diff = cost_history[-2] - cost_history[-1]
+            align_diff = [x - y for x, y in
+                          zip(align_history[-1], align_history[-2])]
+            assert cost_diff >= 0.0
+            if cost_diff >= 0.0 and cost_diff < 1.0E-6 \
+               and np.sum(align_diff) < 1.0E-6:
+                logger.info('iteration step=%d cost_diff = %f'
+                            + 'alignment change=%s',
+                            it, cost_diff, align_diff)
+                break
     return kmeansparam, cost_history
 
 
@@ -303,15 +352,16 @@ def main(args):
         print('model type: ', data.get('model_type'))
         param = data['model_param']
         mu_init = param.Mu
-        
+
     if args.num_cluster > 0:
         Dim = X.shape[1]
         np.random.seed(args.random_seed)
         mu_init = np.random.randn(args.num_cluster, Dim)
 
-    #X = np.abs(X + 1.0E-6)
-    #mu_init = np.abs(mu_init + 1.0E-6)
-    kmeansparam, cost_history = kmeans_clustering(X, mu_init, dist_mode = args.dist_mode)
+    X = np.abs(X + 1.0E-6)
+    mu_init = np.abs(mu_init + 1.0E-6)
+    kmeansparam, cost_history = kmeans_clustering(X, mu_init,
+                                                  dist_mode=args.dist_mode)
     print('Mu:', kmeansparam.Mu)
     print('Sigma:', kmeansparam.Sigma)
 
@@ -324,11 +374,11 @@ def main(args):
     out_file = 'out_kmeans.pickle'
     with open(out_file, 'wb') as f:
         pickle.dump({'model': kmeansparam,
-                    'history': cost_history,
-                    'iteration': len(cost_history),
-                    'alignment': R},
+                     'history': cost_history,
+                     'iteration': len(cost_history),
+                     'alignment': R},
                     f)
-    print(sum(R==1))
+    print(sum(R == 1))
     logger.info('out: %s', out_file)
 
 
@@ -338,17 +388,22 @@ def set_parser():
                     description='What the program does',
                     epilog='Text at the bottom of help')
     parser.add_argument('input_file', type=str, help='sample data in pickle')
-    parser.add_argument('--random_seed', type=int, help='random seed', default=0)
-    parser.add_argument('--dist_mode', type=str, help='distance mode. linear or log', default="linear")
+    parser.add_argument('--random_seed', type=int,
+                        help='random seed', default=0)
+    parser.add_argument('--dist_mode', type=str,
+                        help='distance mode. linear, log, kldiv',
+                        default="linear")
     parser.add_argument('-k', '--num_cluster', type=int,
-                        help='number of cluster. centroid are initialized by randn', default=0)
+                        help='number of cluster.',
+                        default=0)
     return parser
 
+
 if __name__ == '__main__':
-    logging.basicConfig(filename='kmeans.log',\
-        format='%(asctime)s [%(levelname)s] %(name)s %(message)s',\
-        datefmt='%m/%d/%Y %I:%M:%S', \
-        level=logging.INFO)
+    logging.basicConfig(filename='kmeans.log',
+                        format='%(asctime)s [%(levelname)s]'
+                        + '%(name)s %(message)s',
+                        datefmt='%m/%d/%Y %I:%M:%S', level=logging.INFO)
 
     parser = set_parser()
     args = parser.parse_args()
