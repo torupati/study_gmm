@@ -67,7 +67,7 @@ class KmeansCluster():
         elif kwargs['trainvars'] == 'inside':
             self._train_mode = KmeansCluster.TRAIN_VAR_INSIDE
             self._loss = 0.0
-            self._X0 = np.zeros([K])
+            self._X0 = np.zeros([K], dtype=np.uint32)
             self._X1 = np.zeros([K, D])
             if self._cov_mode == KmeansCluster.COV_NONE:
                 self._X2 = None
@@ -161,7 +161,7 @@ class KmeansCluster():
         if len(x.shape) != 2:
             raise Exception("dimension error")
         N = x.shape[0]
-        r = np.zeros((N, self._K))
+        r = np.zeros((N, self._K), dtype=np.uint16)
         for n in range(N):
             if self._dist_mode == KmeansCluster.DISTANCE_LINEAR_SCALE:
                 costs = [sum([v*v for v in (x[n, :] - self.Mu[k, :])]) for k in range(self._K)]
@@ -170,32 +170,11 @@ class KmeansCluster():
             elif self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
                 costs = [KmeansCluster.KL_divergence(x[n, :], self.Mu[k, :]) for k in range(self._K)]
             r[n, np.argmin(costs)] = 1
-
             #r[n, np.argmin([ sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)])] = 1
             r[n, :] = r[n,:]/r[n,:].sum()
             #wk = [(x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2 for k in range(K)]
             #r[n, argmin(wk)] = 1
         return r
-
-    def get_centroid(self, x: np.ndarray, r: np.ndarray) -> np.ndarray:
-        """Calculate centroid from given alignment.
-
-        Args:
-            x (ndarray): input samples (N,D)
-            r (ndarray): sample alignment to clusters (N,K)
-
-        Returns:
-            ndarray: updated centroid(K,D)
-        """
-        #  mu[k, :] = np.sum_n(r[n, k] * x[n,:]) / sum_{n,k'}(r[n, k'])
-        _mu = np.dot(r.transpose(), x)
-        for k in range(self._K):
-            if sum(r[:, k]) < 0.01:
-                # this cluster has no sample aligned.
-                continue
-            _mu[k, :] = _mu[k, :] / sum(r[:, k])
-            # divied by number of aligned sample to the k-th cluster
-        return _mu
 
     def PushSample(self, x: np.ndarray) -> (int, float):
         """Push one training sample to inner training variables
@@ -205,6 +184,7 @@ class KmeansCluster():
 
         Returns:
             int: aligned cluster's index (between 0 and K-1)
+            float: loss of this sample
         """
         if self._train_mode != self.TRAIN_VAR_INSIDE:
             raise Exception('train mode is not TRAIN_VAR_INSIDE.')
@@ -223,7 +203,7 @@ class KmeansCluster():
                 print('mu', self.Mu)
                 raise Exception(f'log(x)={np.log(x)}'
                                 + f' log(mu)={np.log(self.Mu)} costs={costs}')
-            Exception(f'wrong input in distance computation x={x} mu={self.Mu}'
+            raise Exception(f'wrong input in distance computation x={x} mu={self.Mu}'
                       + f'costs={costs}')
 
         k_min = np.argmin(costs)
@@ -236,7 +216,7 @@ class KmeansCluster():
             # NOT checked.
             self._X2[k_min, :, :] = (x.reshape(self._D, 1)
                                      * x.reshape(1, self._D))
-        return k_min
+        return k_min, costs[k_min]
 
     def ClearTrainigVariables(self):
         """Reset inside statistics for training
@@ -321,7 +301,7 @@ def kmeans_clustering(X: np.ndarray, mu_init: np.ndarray, **kwargs):
     pbar = tqdm(range(max_it), desc="kmeans", postfix="postfix", ncols=80)
     for it in pbar:
         for n in range(N):
-            kmeansparam.PushSample(X[n, :])
+            _, _ = kmeansparam.PushSample(X[n, :])
         loss, align_dist = kmeansparam.UpdateParameters()
         kmeansparam.ClearTrainigVariables()
         #  print(loss/N, kmeansparam.Mu)
@@ -358,8 +338,8 @@ def main(args):
         np.random.seed(args.random_seed)
         mu_init = np.random.randn(args.num_cluster, Dim)
 
-    X = np.abs(X + 1.0E-6)
-    mu_init = np.abs(mu_init + 1.0E-6)
+    #X = np.abs(X + 1.0E-6)
+    #mu_init = np.abs(mu_init + 1.0E-6)
     kmeansparam, cost_history = kmeans_clustering(X, mu_init,
                                                   dist_mode=args.dist_mode)
     print('Mu:', kmeansparam.Mu)
