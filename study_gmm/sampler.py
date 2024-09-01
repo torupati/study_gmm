@@ -1,29 +1,66 @@
 import argparse
 import pickle
+import logging
+
+logger = logging.getLogger(__name__)
+
 import numpy as np
 
-from .run_kmeans import KmeansCluster
-from .hmm import HMM
+try:
+    from .hmm import HMM
+    logger.debug("Using relative import")
+except ImportError:
+    from  hmm import HMM
+    logger.debug("Using absoloute import")
+logger.debug(f"{__package__=}  {__name__=}  {__file__=}")
 
-def generate_sample_parameter():
-    K, D = 4, 2
+#from  kmeans import KmeansCluster
+from .kmeans import KmeansCluster
+
+np.random.seed(1)
+
+
+def generate_sample_parameter(K:int = 4, D:int = 2, **kwargs):
+    """Create D-dimensional K component mean and covariance.
+
+    Returns:
+        _type_: _description_
+    """
+    logger.info(f'{K=} {D=}')
     param = KmeansCluster(K, D)
 
-    param.Mu = np.array([[3.0, 3.0],\
+    param.Pi = np.array([1/K]*K)
+
+    if kwargs.get('PREST', False):
+        param.Mu = np.array([[3.0, 3.0],\
         [0.0, 2.0],\
         [2.0, -3.5],\
         [-3.0, 0.0]])
 
-    param.Sigma = np.array([\
+        param.Sigma = np.array([\
         [[1.0, 0.0],[0.0, 1.0]],\
         [[0.3, 0.1],[0.1, 0.1]], \
         [[0.6, -0.3],[-0.3,0.5]],
         [[1.0, 0.8],[0.8, 0.8]]])
-    param.Pi = np.array([1/K]*K)
+        return param
+    param.Mu = np.random.randn(K, D)
+    param.Sigma = np.zeros((K, D, D))
+    for k in range(K):
+        param.Sigma[k, :, :] = np.eye(D)
     return param
 
 
 def generate_samples(n_sample: int, kmeans_param) -> np.ndarray:
+    """_summary_
+
+    Args:
+        n_sample (int): number of samples to be generated.
+        kmeans_param (_type_): mean and covaraince
+
+    Returns:
+        np.ndarray: generated samples.
+    """
+    logger.info(f'{n_sample=} {kmeans_param=}')
     X = np.zeros((n_sample, kmeans_param.D))
     counts = np.random.multinomial(n_sample, kmeans_param.Pi)
     i = 0
@@ -117,90 +154,4 @@ def sampling_from_hmm(sequence_lengths, hmm:HMM):
         out.append(obs)
     return states, out
 
-
-def main_gmm(args):
-    np.random.seed(1)
-
-    kmeans_param = generate_sample_parameter()
-    X = generate_samples(args.N, kmeans_param)
-
-    with open(args.out_file, 'wb') as f:
-        pickle.dump({'model_param': kmeans_param,
-                    'sample': X,
-                    'model_type': 'KmeansClustering'}, f)
-        print(args.out_file)
-
-
-def main_hmm(args):
-
-    M = 2
-    D = 5
-    hmm_param = HMM(2, 5)
-    hmm_param.init_state = np.array([0.1, 0.9])
-    hmm_param.state_tran = np.array([[0.9, 0.1],
-                           [0.5, 0.5]])
-    hmm_param.obs_prob = np.array([\
-        [0.50, 0.20, 0.20, 0.10, 0.00],\
-        [0.00, 0.10, 0.40, 0.40, 0.10]\
-    ])
-    x_lengths = sample_lengths(args.avelen, args.N)
-    st, x = sampling_from_hmm(x_lengths, hmm_param)
-
-    with open(args.out_file, 'wb') as f:
-        pickle.dump({'model_param': hmm_param,
-                    'sample': x,
-                    'latent': st,
-                    'model_type': 'HMM'}, f)
-        print(args.out_file)
-
-
-def main_mm(args):
-    np.random.seed(1)
-
-    M = 2
-    D = 5
-    init_state = np.array([0.1, 0.9])
-    state_tran = np.array([[0.9, 0.1],
-                           [0.5, 0.5]])
-
-    print("main_mm")
-    X = sample_multiple_markov_process(args.N, init_state, state_tran)
-    print(X)
-
-    #with open(args.out_file, 'wb') as f:
-    #    pickle.dump({'model_param': kmeans_param,
-    #                'sample': X,
-    #                'model_type': 'KmeansClustering'}, f)
-    #    print(args.out_file)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-                    prog='',
-                    description='What the program does',
-                    epilog='Text at the bottom of help')
-
-    parser.add_argument('N', type=int, help='number of sample')
-    parser.add_argument('out_file', type=str, \
-        help='output file name(out.pickle)', default='out.pickle')
-
-    subparsers = parser.add_subparsers(title='model',
-                                   description='probabilistic models(gmm,mm,hmm)',
-                                   help='select one from GMM,HMM,MM',
-                                   required=True)
-    parser_mm = subparsers.add_parser('MM', help='markov model help')
-    #parser_mm.add_argument('bar', type=int, help='bar help')
-    parser_mm.set_defaults(func=main_mm)
-
-    parser_gmm = subparsers.add_parser('GMM', help='markov model help')
-    #parser.add_argument('filename')
-    #parser.add_argument('-v', '--verbose', action='store_true')
-    parser_gmm.set_defaults(func=main_gmm)
-
-    parser_hmm = subparsers.add_parser('HMM', help='markov model help')
-    parser_hmm .add_argument('--avelen', type=int, help='average sample lengths', default=10)
-    parser_hmm.set_defaults(func=main_hmm)
-
-    args = parser.parse_args()
-    args.func(args)
 

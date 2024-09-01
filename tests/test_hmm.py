@@ -1,5 +1,5 @@
 from study_gmm.hmm import HMM, print_state_obs, hmm_baum_welch, hmm_viterbi_training
-from study_gmm.sample_generator import sampling_from_hmm
+from study_gmm.sampler import sampling_from_hmm
 import numpy as np
 
 def test_viterbi_search():

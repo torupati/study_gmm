@@ -1,5 +1,5 @@
 from study_gmm.hmm import HMM, print_state_obs, hmm_baum_welch
-from study_gmm.sample_generator import sampling_from_hmm
+from study_gmm.sampler import sampling_from_hmm
 from study_gmm.hmm_plot import plot_gamma
 import matplotlib.pyplot as plt
 import copy
@@ -78,3 +78,6 @@ def test_forward_backward():
         ax.set_ylim([0, 1.0])
         ax.legend()
     fig.savefig('out_hmm_training_outprob_dist.png') 
+
+if __name__ == '__main__':
+    test_forward_backward()
