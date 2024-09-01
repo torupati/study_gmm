@@ -1,5 +1,5 @@
 from study_gmm.hmm import HMM, print_state_obs
-from study_gmm.sample_generator import sampling_from_hmm
+from study_gmm.sampler import sampling_from_hmm
 from study_gmm.hmm_plot import plot_gamma
 import matplotlib.pyplot as plt
 

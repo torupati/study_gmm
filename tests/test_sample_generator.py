@@ -1,5 +1,5 @@
-from study_gmm.sample_generator import sampling_from_hmm
-from study_gmm.sample_generator import sample_markov_process
+from study_gmm.sampler import sampling_from_hmm
+from study_gmm.sampler import sample_markov_process
 from study_gmm.hmm import HMM
 import numpy as np
 
