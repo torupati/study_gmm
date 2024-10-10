@@ -15,7 +15,7 @@ def test_forward_backward():
     D = 4
     hmm = HMM(M, D)
     hmm.init_state = np.array([0.34, 0.33, 0.33])
-    hmm._log_init_state = np.log(hmm.init_state)
+    #hmm._log_init_state = np.log(hmm.init_state)
     hmm.state_tran = np.array([[0.60, 0.35, 0.05],\
                                [0.01, 0.60, 0.39],
                                [0.30, 0.00, 0.70]])
@@ -24,7 +24,7 @@ def test_forward_backward():
         [0.01, 0.09, 0.80, 0.10],
         [0.1, 0.45, 0.00, 0.45]])
     hmm_orig = copy.deepcopy(hmm)
-    print(f"hmm={hmm}")
+    print(f"defined hmm={hmm}")
 
 #    N = 200
 #    T = 50
@@ -37,12 +37,15 @@ def test_forward_backward():
     hmm.state_tran = np.array([[1/3.0]*3,\
                                [1/3.0]*3,
                                [1/3.0]*3])
+    hmm.state_tran = np.array([[0.60, 0.30, 0.10],\
+                               [0.10, 0.60, 0.30],
+                               [0.30, 0.10, 0.60]])
     hmm.obs_prob = np.array([\
         [0.4, 0.2, 0.20, 0.20],
         [0.20, 0.20, 0.4, 0.20],
         [0.25, 0.25, 0.25, 0.25]])
     hmm_init = copy.deepcopy(hmm)
-    ll_history = hmm_baum_welch(hmm, obs_seqs)
+    ll_history = hmm_baum_welch(hmm, obs_seqs, itr_limit=1000)
     print(hmm.state_tran)
     #print(ll_history)
     print('')

@@ -31,7 +31,7 @@ def generate_sample_parameter(K:int = 4, D:int = 2, **kwargs):
 
     param.Pi = np.array([1/K]*K)
 
-    if kwargs.get('PREST', False):
+    if kwargs.get('PRESET', False):
         param.Mu = np.array([[3.0, 3.0],\
         [0.0, 2.0],\
         [2.0, -3.5],\
