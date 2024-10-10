@@ -1,6 +1,7 @@
 """
-EM algorithm implementation to train Gaussian Mixture Models
+EM algorithm implementation to train Gaussian Mixture Models.
 """
+
 import numpy as np
 import pickle
 from numpy import ndarray, random
@@ -16,7 +17,7 @@ class GaussianMixtureModel():
     """
 
     def __init__(self, M:int, D:int):
-        """_summary_
+        """
         Each Gaussian is initialized as zero means, unit covariance.
         Weight is initailized as equal probability.
         Args:

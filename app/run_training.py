@@ -2,27 +2,22 @@ import pickle
 import argparse
 
 import numpy as np
+
+import logging
+_logger = logging.getLogger(__name__)
+_logger.setLevel(logging.DEBUG)
+
 from study_gmm.kmeans import kmeans_clustering
 from study_gmm.kmeans_plot import plot_distortion_history
 
-import logging
 
-_logger = logging.getLogger(__name__)
-logging.basicConfig(format='%(asctime)s [%(levelname)s] %(name)s %(message)s',
-                    datefmt='%m/%d/%Y %I:%M:%S',
-                    handlers=[
-                        logging.FileHandler("debug.log"),
-                        logging.StreamHandler()
-                    ],
-                    level=logging.INFO)
-
-def main(args):
-    print(args.input_file)
+def train_kmeans(args):
+    _logger.info("input: %s", args.input_file)
     with open(args.input_file, 'rb') as f:
         data = pickle.load(f)
-        print(data.keys())
+        #_logger.debug(data.keys())
         X = data['sample']
-        print('model type: ', data.get('model_type'))
+        _logger.info('model type: %s', data.get('model_type'))
         param = data['model_param']
         mu_init = param.Mu
 
@@ -30,13 +25,15 @@ def main(args):
         Dim = X.shape[1]
         np.random.seed(args.random_seed)
         mu_init = np.random.randn(args.num_cluster, Dim)
+        _logger.info("initial points generated from randn (%d %d)", args.num_cluster, Dim)
 
     #X = np.abs(X + 1.0E-6)
     #mu_init = np.abs(mu_init + 1.0E-6)
     kmeansparam, cost_history = kmeans_clustering(X, mu_init,
-                                                  dist_mode=args.dist_mode)
-    print('Mu:', kmeansparam.Mu)
-    print('Sigma:', kmeansparam.Sigma)
+                                                  dist_mode=args.dist_mode,
+                                                  max_it = 100)
+    #print('Mu:', kmeansparam.Mu)
+    #print('Sigma:', kmeansparam.Sigma)
 
     out_pngfile = "distortion.png"
     fig = plot_distortion_history(cost_history)
@@ -51,7 +48,7 @@ def main(args):
                      'iteration': len(cost_history),
                      'alignment': R},
                     f)
-    print(sum(R == 1))
+    #print(sum(R == 1))
     _logger.info('out: %s', out_file)
 
 
@@ -71,13 +68,18 @@ def set_parser():
                         default=0)
     return parser
 
-
-if __name__ == '__main__':
-    logging.basicConfig(filename='kmeans.log',
-                        format='%(asctime)s [%(levelname)s]'
-                        + '%(name)s %(message)s',
-                        datefmt='%m/%d/%Y %I:%M:%S', level=logging.debug)
-
+def main():
+    logging.basicConfig(format='%(asctime)s [%(levelname)s] %(name)s %(message)s',
+                    datefmt='%m/%d/%Y %I:%M:%S',
+                    handlers=[
+                        logging.FileHandler("kmeans.log"),
+                        logging.StreamHandler()
+                    ],
+                    level=logging.INFO)
     parser = set_parser()
     args = parser.parse_args()
-    main(args)
+    train_kmeans(args)
+    _logger.info("log: kmeans.log")
+
+if __name__ == '__main__':
+    main()

@@ -4,14 +4,15 @@ K-means clustering Implementation
 import numpy as np
 import pickle
 from tqdm import tqdm
-import argparse
+from tqdm.contrib.logging import logging_redirect_tqdm
 import logging
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.INFO)
 
 class KmeansCluster():
-    """Definition of clusters for K-means altorithm
+    """class
+    Definition of clusters for K-means altorithm
     """
     COV_NONE = 0
     COV_FULL = 1
@@ -25,7 +26,7 @@ class KmeansCluster():
     DISTANCE_KL_DIVERGENCE = 2
 
     def __init__(self, K: int, D: int, **kwargs):
-        """_summary_
+        """Initialize instance.
 
         Args:
             K (int): number of cluster. Fixed.
@@ -42,7 +43,6 @@ class KmeansCluster():
         If you want to change the number of clusters, new instance with desired
         cluster numbers should be created.
         """
-
         self._K = K
         self._D = D
         self.Mu = np.random.randn(K, D)  # centroid
@@ -59,7 +59,7 @@ class KmeansCluster():
             raise Exception('invalid covariance mode')
 
         # define training variables
-        print(kwargs.get('trainvars', 'outside') == 'outside')
+        #print(kwargs.get('trainvars', 'outside') == 'outside')
         if kwargs.get('trainvars', 'outside') == 'outside':
             self._train_mode = KmeansCluster.TRAIN_VAR_OUTSIDE
         elif kwargs['trainvars'] == 'inside':
@@ -296,26 +296,27 @@ def kmeans_clustering(X: np.ndarray, mu_init: np.ndarray, **kwargs):
     kmeansparam.Mu = mu_init
     cost_history = []
     align_history = []
-    pbar = tqdm(range(max_it), desc="kmeans", postfix="postfix", ncols=80)
-    for it in pbar:
-        for n in range(N):
-            _, _ = kmeansparam.PushSample(X[n, :])
-        loss, align_dist = kmeansparam.UpdateParameters()
-        kmeansparam.ClearTrainigVariables()
-        #  print(loss/N, kmeansparam.Mu)
-        logger.info("iteration %d loss %f", it, loss/N)
-        cost_history.append(loss)
-        align_history.append(align_dist)
-        # Convergence validation
-        if len(cost_history) > 1:
-            cost_diff = cost_history[-2] - cost_history[-1]
-            align_diff = [x - y for x, y in
-                          zip(align_history[-1], align_history[-2])]
-            assert cost_diff >= 0.0
-            if cost_diff >= 0.0 and cost_diff < 1.0E-6 \
-               and np.sum(align_diff) < 1.0E-6:
-                logger.info('iteration step=%d cost_diff = %f'
-                            + 'alignment change=%s',
-                            it, cost_diff, align_diff)
-                break
+    with logging_redirect_tqdm(loggers=[logger]):
+        pbar = tqdm(range(max_it), desc="kmeans", postfix="postfix", ncols=80)
+        for it in pbar:
+            for n in range(N):
+                _, _ = kmeansparam.PushSample(X[n, :])
+            loss, align_dist = kmeansparam.UpdateParameters()
+            kmeansparam.ClearTrainigVariables()
+            #logger.info("iteration %d loss %f", it, loss/N)
+            pbar.write(f"iteration {it} loss {loss/N}")
+            cost_history.append(loss)
+            align_history.append(align_dist)
+            # Convergence validation
+            if len(cost_history) > 1:
+                cost_diff = cost_history[-2] - cost_history[-1]
+                align_diff = [x - y for x, y in
+                              zip(align_history[-1], align_history[-2])]
+                assert cost_diff >= 0.0
+                if cost_diff >= 0.0 and cost_diff < 1.0E-6 \
+                   and np.sum(align_diff) < 1.0E-6:
+                    logger.debug('iteration step=%d cost_diff = %f'
+                                + 'alignment change=%s',
+                                it, cost_diff, align_diff)
+                    break
     return kmeansparam, cost_history
