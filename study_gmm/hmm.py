@@ -374,7 +374,7 @@ def hmm_baum_welch(hmm, obss_seqs, itr_limit:int = 100) -> dict:
         ll_history['total_obs_num'].append(total_obs_num)
         ll_history['total_seq_num'].append(len(obss_seqs))
         # save model
-        if _save_model and itr_count % 10 == 0:
+        if _save_model and itr_count % 30 == 0:
             ckpt_file = path.join(outdir, f'hmm_checkpoint_{itr_count:06d}.ckpt')
             with open(ckpt_file, 'wb') as f:
                 pickle.dump({'model': hmm,

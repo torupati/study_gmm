@@ -20,10 +20,10 @@ def test_viterbi_search():
 
     #observations = [0, 1, 2, 3, 2, 0, 2, 0]
     st_orig, obs = sampling_from_hmm([10], hmm)
-    print("observations({})={}".format(len(obs), obs))
-    st, ll = hmm.viterbi_search(obs)
+    print("observations({})={}".format(len(obs[0]), obs[0]))
+    st, ll = hmm.viterbi_search(obs[0])
     print('st (', len(st), ')= ', st )
-    print_state_obs(obs, st)
+    print_state_obs(obs[0], st)
     print(st_orig)
 #    print( viterbi_path(priors, transmat, obslik, scaled=False, ret_loglik=True) )#=> (array([0, 1, 1, 1, 0]), -8.0120386579275227)
 
@@ -46,15 +46,14 @@ def test_viterbi_search2():
 
     counts = 0
     total_counts = 0
-    for samp_idx in range(10):
+    for samp_idx in range(1):
         st_orig, obs = sampling_from_hmm([200], hmm)
         #print("observations({})={}".format(len(obs), obs))
-        st, ll = hmm.viterbi_search(obs)
+        st, ll = hmm.viterbi_search(obs[0])
         #print('st (', len(st), ')= ', st )
         #print_state_obs(obs, st)
-        #print(st_orig)
         print('idx   org  est')
-        for _i, (s0, s1, o) in enumerate(zip(st_orig, st, obs)):
+        for _i, (s0, s1, o) in enumerate(zip(st_orig, st, obs[0])):
             print(f'i={_i:03d} {s0}    {s1}  o={o}')
             if s0 == s1:
                 counts += 1
@@ -67,7 +66,6 @@ def test_viterbi_search3():
     D = 4
     hmm = HMM(M, D)
     hmm.init_state = np.array([0.50, 0.50, 0.00])
-    hmm._log_init_state = np.log(hmm.init_state)
     hmm.state_tran = np.array([[0.60, 0.35, 0.05],\
                                [0.01, 0.60, 0.39],
                                [0.30, 0.00, 0.70]])
@@ -78,6 +76,8 @@ def test_viterbi_search3():
 
     obs = [0, 1, 1]
     st, ll = hmm.viterbi_search(obs)
+    print("Optimal state sequence: ")
+    print(st)
 
 
 def test_viterbi_training():
@@ -125,3 +125,17 @@ def test_baum_welch():
     #hmm_baum_welch(hmm, training_data)
     print(f"hmm={hmm}")
 
+print("------ test_viterbi_training ------")
+test_viterbi_training()
+print("")
+
+print("------ test_viterbi_search ------")
+test_viterbi_search()
+print("")
+
+print("------ test_viterbi_search2 ------")
+test_viterbi_search2()
+print("")
+
+print("------ test_viterbi_search3 ------")
+test_viterbi_search3()
