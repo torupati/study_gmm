@@ -7,6 +7,14 @@ import pickle
 from numpy import ndarray, random
 from numpy import load, array, dot, sum
 from scipy.stats import multivariate_normal
+
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 import matplotlib.pyplot as plt
 
 
@@ -58,17 +66,25 @@ class GaussianMixtureModel():
         """Calculate probability of this GMM at given sample points
 
         Args:
-            x (ndarray): _description_
+            x (ndarray): random variable of GMM
 
         Returns:
-            ndarray: _description_
+            ndarray: probability density of GMM. Note this is NOT in log scale.
         """
-        return sum(self._Pi[k] * multivariate_normal(self.Mu[k, :], self.Sigma[k, :, :]).pdf(x) \
-            for k in range(self._K))
+        return sum(self.Pi[k] * multivariate_normal(self.Mu[k, :], self.Sigma[k, :, :]).pdf(x) \
+            for k in range(self._M))
 
-    def log_likelihood(self, x: np.ndarray):
+    def log_likelihood(self, x: np.ndarray) -> float:
+        """Calculate log-likelihood of vectors.
+
+        Args:
+            x (np.ndarray): D-dimesional vectors. Its number is N. (N, D)
+
+        Returns:
+            float: Total log-likelihood
+        """
         N, D = x.shape
-        y = np.zeros((N, self._M)) #keep all Gaussian pdf (nost smart)
+        y = np.zeros((N, self._M)) #keep all Gaussian pdf (not smart)
         for k in range(self._M):
             y[:, k] = multivariate_normal(self.Mu[k, :], self.Sigma[k, :, :]).pdf(x)  # (K,N)
         lh = 0
@@ -140,16 +156,16 @@ class GaussianMixtureModel():
         """
         Not implemented yet.
         """
-        raise Excdeption('not implemented')
-        gauss_vars = {}
-        for m in self._M:
-            var = np.sum(np.diag(self.Sigma[m,:,:]))
-            gauss_vars[m] = var
-        max_m = max(guass_vars, key=gauss_vars.get)
-        self._M += 1
-        
-        self.Mu = np.random.randn(self._M, self._D)
-        self.Sigma = np.zeros((self._M, self._D, self._D))
+        raise NotImplementedError('not implemented')
+        #gauss_vars = {}
+        #for m in self._M:
+        #    var = np.sum(np.diag(self.Sigma[m,:,:]))
+        #    gauss_vars[m] = var
+        #max_m = max(guass_vars, key=gauss_vars.get)
+        #self._M += 1
+        #
+        #self.Mu = np.random.randn(self._M, self._D)
+        #self.Sigma = np.zeros((self._M, self._D, self._D))
 
 
 def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray, max_it:int =12):
@@ -165,12 +181,15 @@ def train_gmm(gmm:GaussianMixtureModel, X:np.ndarray, max_it:int =12):
     """
     N = X.shape[0]
     loglikelihood_history = []  # distortion measure
-    for it in range(0, max_it):
+    with logging_redirect_tqdm(loggers=[logger]):
+        pbar = tqdm(range(max_it), desc=f"gmm-train(M={gmm.M})", postfix="postfix", ncols=80)
+        for it in pbar:
+    #for it in range(0, max_it):
         #_ll = gmm.log_likelihood(X)
-        _gamma, _ll = gmm.update_e_step(X)
-        loglikelihood_history.append(_ll)
-        gmm.update_m_step(X, _gamma)
-#        print('GMM EM training: step={_i} E[log(P(X)]={_l}'.format(_i=it, _l=_ll/N))
+            _gamma, _ll = gmm.update_e_step(X)
+            loglikelihood_history.append(_ll)
+            gmm.update_m_step(X, _gamma)
+            pbar.write('GMM EM training: step={_i} E[log(P(X)]={_l}'.format(_i=len(loglikelihood_history), _l=_ll/N))
     return gmm, loglikelihood_history
 
 
