@@ -1,6 +1,8 @@
 import pickle
 import numpy as np
 from study_gmm.sampler import generate_sample_parameter, generate_samples
+from study_gmm.sampler import sample_lengths, sampling_from_hmm, sample_multiple_markov_process
+from study_gmm.hmm import HMM
 
 import logging
 
@@ -8,7 +10,7 @@ _logger = logging.getLogger(__name__)
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(name)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S',
                     handlers=[
-                        logging.FileHandler("debug.log"),
+                        logging.FileHandler("sample_generator.log"),
                         logging.StreamHandler()
                     ],
                     level=logging.INFO)
@@ -20,6 +22,7 @@ def main_gmm(args):
     Args:
         args (_type_): _description_
     """
+    _logger.info(f'{args=}')
     kmeans_param = generate_sample_parameter(args.cluster, args.dimension)
     _logger.info(f'{kmeans_param=}')
 
@@ -34,6 +37,7 @@ def main_gmm(args):
 
 
 def main_hmm(args):
+    _logger.info(f'{args=}')
 
     M = 2
     D = 5
@@ -57,6 +61,7 @@ def main_hmm(args):
 
 
 def main_mm(args):
+    _logger.info(f'{args=}')
     np.random.seed(1)
 
     M = 2
