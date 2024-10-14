@@ -1,23 +1,85 @@
-# PYEMALGO
+# EMALGO
 
-This is a deliverable of my self-learning project.
-EM algorithm for GMM and HMM is carefully formulated and implemented according to the very classical manners.
+This is a sample implementation of training and inference using stochastic modeling including GMM and HMMs.
 
+## Description
 
-## Run with poetry
+- K-means algorithm
+- Gaussian mixture models
+- Markov models
+- Hidden markov models
 
-First you must have poetry in your environment. If not, please install it.
+## Getting Started
+
+### Dependencies
+
+* I am running this program on Ubuntu22.04 on Wdinwos Subsystem Linux (WSL)2. Any other environment where python is varilable would work this program.
+
+### Installing
+
+* I am using pyenv and poetry for controling environemtn.
+
+* Setup
+
+If you want use python 3.12, install python 3.12 by pyenv and refer it for virtual envirnment for this project.
+
+```
+$ pyenv install 3.12
+$ pyenv local 3.12
+$ poetry env use `which python`
+```
+
+Install modules to the virtual envornment and use it.
 
 ```
 $ poetry install
 ```
 
-is prepare the python libraries required in this project.
+After that, you can enter the virtual envornment for this project.
 
 ```
-$ peotry run pytest -s -v tests
+$ poetry shell
 ```
 
+### Executing program
 
-# References
+* How to run the program
+* Step-by-step bullets
 
+```
+code blocks for commands
+```
+
+## Help
+
+Any advise for common problems or issues.
+
+```
+command to run if program contains helper info
+```
+
+## Authors
+
+Contributors names and contact info
+
+
+[@XPT60](https://qiita.com/XPT60)
+
+## Version History
+
+* 0.2
+    * Various bug fixes and optimizations
+    * See [commit change]() or See [release history]()
+* 0.1
+    * Initial Release
+<!---
+
+## License
+
+This project is licensed under the [NAME HERE] License - see the LICENSE.md file for details
+
+## Acknowledgments
+
+Inspiration, code snippets, etc.
+* [awesome-readme](https://github.com/matiassingers/awesome-readme)
+-->
