@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 
 def plot_gamma(ax, _gamma, state_labels: list = []):
     
@@ -15,7 +16,7 @@ def plot_gamma(ax, _gamma, state_labels: list = []):
     #ax.set_ylabel('state index')
     return ax
 
-def plot_likelihood(ax, steps:list, log_liklihood: list, ylabel:str):
+def plot_likelihood(ax, steps:list, log_likelihood:list, ylabel:str):
     ax.plot(steps, log_likelihood)
     ax.grid(True)
     ax.set_xlabel('iteration steps')
@@ -29,9 +30,17 @@ def plot_checkpoint_dir(ckpt_file):
     """
 
     state_name = ['A dominant', 'B dominant', 'Transient']
-    state_labels = ['A boom', 'B boom', 'Trans.']
     names = ['A', 'B', 'C', 'D']
-    fig, axs = fig, axs = plt.subplots(1, M, figsize=(9, 3), sharey=True)
+    with open(ckpt_file, ) as f:
+        model = pickle.load(f)
+        hmm = model.get('model', None)
+        model_type = model.get('model_type', '')
+        #                     'total_likelihood': total_likelihood,
+        #                     'total_sequence_num': len(obss_seqs),
+        #                     'total_obs_num': total_obs_num,
+        #                     'iteration': itr_count},
+    M = len(state_name)
+    fig, axs = plt.subplots(1, M, figsize=(9, 3), sharey=True)
     for b, st_name, ax in zip(hmm.obs_prob, state_name, axs):
         ax.bar(names, b, alpha=0.75)
         ax.set_title(st_name)
