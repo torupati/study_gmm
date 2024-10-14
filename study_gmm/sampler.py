@@ -101,15 +101,15 @@ def sample_markov_process(length:int, init_prob, tran_prob):
 
 
 def sample_lengths(ave_len:int, num: int):
-    """_summary_
+    """Determin lengths of sequences by possion distribution.
 
     Args:
-        ave_len (int): _description_
-        num (int): _description_
+        ave_len (int): average of sample length
+        num (int): number of sequence to be generated
     """
     lengths = np.random.poisson(ave_len, num)
     if len(lengths[lengths == 0]) > 0:
-        for i in np.where(length == 0):
+        for i in np.where(lengths == 0):
             while True:
                 v = np.random.poisson(ave_len, 1)[0]
                 if v > 0:
