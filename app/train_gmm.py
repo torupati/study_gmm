@@ -5,7 +5,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 import matplotlib.pyplot as plt
-from study_gmm.gmm import GaussianMixtureModel, plot_loglikelihood_history, train_gmm, mixutre_number_test, load_from_file
+from study_gmm.gmm import GaussianMixtureModel, train_gmm, mixutre_number_test, load_from_file
+from study_gmm.gmm_plot import plot_loglikelihood_history
 
 def main(args):
     X, Param = load_from_file(args.input_file)
