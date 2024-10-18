@@ -1,0 +1,4 @@
+[BASIC]
+
+# Good variable names which should always be accepted, separated by a comma.
+good-names=K, _K, M, _M, _X0, _X1, _X2

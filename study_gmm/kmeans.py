@@ -1,14 +1,36 @@
 """
 K-means clustering Implementation
 """
+import logging
+
 import numpy as np
-import pickle
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+class KmeansException(Exception):
+    def __init__(self, arg=""):
+        self.arg = arg
+
+class InvalidParameterSetting(KmeansException):
+    def __str__(self):
+        return (
+            f"{self.arg=}"
+        )
+
+class InsideError(KmeansException):
+    def __str__(self):
+        return (
+            f"{self.arg=}"
+        )
+
+class InputSampleError(KmeansException):
+    def __str__(self):
+        return (
+            f"{self.arg=}"
+        )
 
 class KmeansCluster():
     """class
@@ -56,7 +78,7 @@ class KmeansCluster():
             self._cov_mode = KmeansCluster.COV_NONE
             self.Sigma = None
         else:
-            raise Exception('invalid covariance mode')
+            raise InvalidParameterSetting('covariance mode is wrong in constructor.')
 
         # define training variables
         #print(kwargs.get('trainvars', 'outside') == 'outside')
@@ -74,7 +96,7 @@ class KmeansCluster():
             elif self._cov_mode == KmeansCluster.COV_DIAG:
                 self._X2 = np.zeros([K, D])
         else:
-            raise Exception('invalid training variable mode.')
+            raise InvalidParameterSetting('training variable mode.')
 
         if kwargs.get('dist_mode', 'linear') == 'linear':
             self._dist_mode = KmeansCluster.DISTANCE_LINEAR_SCALE
@@ -83,7 +105,7 @@ class KmeansCluster():
         elif kwargs['dist_mode'] == 'kldiv':
             self._dist_mode = KmeansCluster.DISTANCE_KL_DIVERGENCE
         else:
-            raise Exception('invalid distance mode')
+            raise InvalidParameterSetting('distance mode')
 
     @property
     def K(self) -> int:
@@ -157,7 +179,7 @@ class KmeansCluster():
             r (ndarray): sample alignment to clusters (N,K)
         """
         if len(x.shape) != 2:
-            raise Exception("dimension error")
+            raise InputSampleError(f"input shape is wrong {x.shape=}")
         N = x.shape[0]
         r = np.zeros((N, self._K), dtype=np.uint16)
         for n in range(N):
@@ -195,10 +217,10 @@ class KmeansCluster():
         elif self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
             costs = [KmeansCluster.KL_divergence(x, self.Mu[k, :]) for k
                      in range(self._K)]
+        else:
+            raise InvalidParameterSetting("wrong distance model")
         if np.isinf(costs).any():
             if self._dist_mode == KmeansCluster.DISTANCE_LOG_SCALE:
-                print('x')
-                print('mu', self.Mu)
                 raise Exception(f'log(x)={np.log(x)}'
                                 + f' log(mu)={np.log(self.Mu)} costs={costs}')
             raise Exception(f'wrong input in distance computation x={x} mu={self.Mu}'
@@ -254,11 +276,13 @@ class KmeansCluster():
 
     @staticmethod
     def KL_divergence(x: np.ndarray, y: np.ndarray, **kwargs) -> float:
-        """_summary_
+        """Calculate KL divergence beteen two vectors.
 
         Args:
             x (np.ndarray): _description_
             y (np.ndarray): _description_
+        Note:
+            input vectors must be non negative.
 
         Returns:
             float: _description_
@@ -284,10 +308,10 @@ def kmeans_clustering(X: np.ndarray, mu_init: np.ndarray, **kwargs):
     K, Dim = mu_init.shape
     N, Dim2 = X.shape
     if Dim != Dim2:
-        raise Exception('dimmension is not compatible.')
+        raise InsideError(f"Wrong dim. M: {Dim}  X: {Dim2}")
 
     max_it = kwargs.get('max_it', 20)
-    save_ckpt = kwargs.get('save_ckpt', False)
+    #save_ckpt = kwargs.get('save_ckpt', False)
     dist_mode = kwargs.get('dist_mode', 'linear')
 
     kmeansparam = KmeansCluster(K, Dim, trainvars='inside',
@@ -313,8 +337,7 @@ def kmeans_clustering(X: np.ndarray, mu_init: np.ndarray, **kwargs):
                 align_diff = [x - y for x, y in
                               zip(align_history[-1], align_history[-2])]
                 assert cost_diff >= 0.0
-                if cost_diff >= 0.0 and cost_diff < 1.0E-6 \
-                   and np.sum(align_diff) < 1.0E-6:
+                if 0.0 <= cost_diff < 1.0E-6 and np.sum(align_diff) < 1.0E-6:
                     logger.debug('iteration step=%d cost_diff = %f'
                                 + 'alignment change=%s',
                                 it, cost_diff, align_diff)
