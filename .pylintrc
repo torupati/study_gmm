@@ -1,4 +1,4 @@
-[MAIN]
+/[MAIN]
 
 # Analyse import fallback blocks. This can be used to support both Python 2 and
 # 3 compatible code, which means that the block might have code that exists
@@ -254,6 +254,10 @@ variable-naming-style=snake_case
 # naming-style. If left empty, variable names will be checked with the set
 # naming style.
 #variable-rgx=
+
+# Good variable names which should always be accepted, separated by a comma.
+good-names=K, _K, M, _M, _X0, _X1, _X2
+
 
 
 [CLASSES]

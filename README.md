@@ -13,7 +13,7 @@ This is a sample implementation of training and inference using stochastic model
 
 ### Dependencies
 
-* I am running this program on Ubuntu22.04 on Wdinwos Subsystem Linux (WSL)2. Any other environment where python is varilable would work this program.
+* I am running this program on Ubuntu24.04.1 LTS on Wdinwos Subsystem Linux (WSL)2. Any other environment where python is varilable would work this program.
 
 ### Installing
 
