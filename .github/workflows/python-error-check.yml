@@ -39,5 +39,5 @@ jobs:
         poetry run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Analysing the code with pylint
       run: |
-        apt install graphviz
+        sudo apt-get -y install graphviz
         poetry run pylint $(git ls-files 'study_gmm/*.py')
