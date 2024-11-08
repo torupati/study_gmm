@@ -195,7 +195,7 @@ good-names=i,
            k,
            ex,
            Run,
-           _
+           _, K, _K, M, _M, _X0, _X1, _X2, D, S, L
 
 # Good variable names regexes, separated by a comma. If names match any regex,
 # they will always be accepted
@@ -254,10 +254,6 @@ variable-naming-style=snake_case
 # naming-style. If left empty, variable names will be checked with the set
 # naming style.
 #variable-rgx=
-
-# Good variable names which should always be accepted, separated by a comma.
-good-names=K, _K, M, _M, _X0, _X1, _X2
-
 
 
 [CLASSES]
