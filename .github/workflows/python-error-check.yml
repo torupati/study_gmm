@@ -30,7 +30,7 @@ jobs:
          poetry install
     - name: Test with pytest
       run: |
-        poetry run pytest
+        poetry run pytest -v
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -39,4 +39,5 @@ jobs:
         poetry run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Analysing the code with pylint
       run: |
+        apt install graphviz
         poetry run pylint $(git ls-files 'study_gmm/*.py')
