@@ -65,6 +65,7 @@ def test_viterbi_search3():
     M = 3
     D = 4
     hmm = HMM(M, D)
+# pylint: disable=duplicate-code
     hmm.init_state = np.array([0.50, 0.50, 0.00])
     hmm.state_tran = np.array([[0.60, 0.35, 0.05],\
                                [0.01, 0.60, 0.39],
@@ -73,7 +74,7 @@ def test_viterbi_search3():
         [0.70, 0.10, 0.10, 0.10],
         [0.01, 0.09, 0.80, 0.10],
         [0.1, 0.45, 0.00, 0.45]])
-
+# pylint: enable=duplicate-code
     obs = [0, 1, 1]
     st, ll = hmm.viterbi_search(obs)
     print("Optimal state sequence: ")
