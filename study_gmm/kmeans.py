@@ -138,8 +138,8 @@ class KmeansCluster():
                 + ' dist={d2}'.format(d2=self.DistanceType)
 
     @property
-    def covariance_mode(self) -> str:
-        return self._cov_mode.name
+    def covariance_mode(self):
+        return self._cov_mode
 
     @property
     def train_vars_mode(self) -> str:
@@ -160,13 +160,15 @@ class KmeansCluster():
         if n_sample == 0:
             return 0.0
         for n in range(n_sample):
+            dist = None
             if self._dist_mode == KmeansCluster.DISTANCE_LINEAR_SCALE:
                 dist = [sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)]
             elif self._dist_mode == KmeansCluster.DISTANCE_LOG_SCALE:
                 dist = [sum(v*v for v in np.log(x[n, :]) - np.log(self.Mu[k, :])) for k in range(self._K)]
             elif self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
                 dist = [KmeansCluster.KL_divergence(x[n, :], self.Mu[k, :]) for k in range(self._K)]
-            J = J + np.dot(r[n, :], dist)
+            if dist is not None:
+                J = J + np.dot(r[n, :], dist)
         return J/n_sample
 
     def get_alignment(self, x: np.ndarray) -> np.ndarray:
@@ -183,13 +185,15 @@ class KmeansCluster():
         N = x.shape[0]
         r = np.zeros((N, self._K), dtype=np.uint16)
         for n in range(N):
+            costs = None
             if self._dist_mode == KmeansCluster.DISTANCE_LINEAR_SCALE:
                 costs = [sum([v*v for v in (x[n, :] - self.Mu[k, :])]) for k in range(self._K)]
             elif self._dist_mode == KmeansCluster.DISTANCE_LOG_SCALE:
                 costs = [sum([v*v for v in (np.log(x[n, :]) - np.log(self.Mu[k, :]))]) for k in range(self._K)]
             elif self._dist_mode == KmeansCluster.DISTANCE_KL_DIVERGENCE:
                 costs = [KmeansCluster.KL_divergence(x[n, :], self.Mu[k, :]) for k in range(self._K)]
-            r[n, np.argmin(costs)] = 1
+            if costs is not None:
+                r[n, np.argmin(costs)] = 1
             #r[n, np.argmin([ sum(v*v for v in x[n, :] - self.Mu[k, :]) for k in range(self._K)])] = 1
             r[n, :] = r[n,:]/r[n,:].sum()
             #wk = [(x[n, 0] - mu[k, 0])**2 + (x[n, 1] - mu[k, 1])**2 for k in range(K)]
