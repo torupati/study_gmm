@@ -40,7 +40,7 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         sudo apt-get -y install graphviz
-        poetry run pylint $(git ls-files 'study_gmm/*.py') --output=lit.txt || true
+        poetry run pylint $(git ls-files 'study_gmm/*.py') --output=lint.txt || true
     - name: Upload Artifact
       uses: actions/upload-artifact@v3
       with:
