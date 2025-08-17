@@ -36,7 +36,8 @@ jobs:
 
     # Install dependencies from pyproject.toml into the newly created virtual environment
     - name: Install dependencies
-      run: uv pip install .
+      run: uv pip install -e .[dev]
+      #run: uv pip install .
 
     # Run tests with pytest. Use uv run to execute pytest from the virtual environment.
     - name: Test with pytest
