@@ -25,6 +25,9 @@ pythonpath = [
   "."
 ]
 
+[tool.flake8]
+exclude = [".venv", ".git", "__pycache__", "docs"]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
