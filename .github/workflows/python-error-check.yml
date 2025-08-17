@@ -30,7 +30,11 @@ jobs:
     - name: Install uv
       run: pip install uv
 
-    # Install dependencies from pyproject.toml using uv
+    # Create a virtual environment with uv. This is necessary before installing dependencies.
+    - name: Create virtual environment
+      run: uv venv
+
+    # Install dependencies from pyproject.toml into the newly created virtual environment
     - name: Install dependencies
       run: uv pip install .
 
