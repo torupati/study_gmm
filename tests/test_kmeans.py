@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 from study_gmm.sampler import generate_sample_parameter, generate_samples
 from study_gmm.kmeans import kmeans_clustering, KmeansCluster
+from study_gmm.kmeans import InvalidParameterSetting
 
 def test_kmeans():
     # generate samples.
@@ -29,4 +30,23 @@ def test_kmeans():
     kmeansparam, cost_history = kmeans_clustering(X, mu_init,
                                                   dist_mode="linear")
     assert len(cost_history) > 0
+
+def test_kmeans_constructor():
+    try:
+        _ = KmeansCluster(10, 10, covariance_mode="diag")
+    except InvalidParameterSetting as e:
+        print(e)
+    try:
+        _ = KmeansCluster(10, 10, covariance_mode="full")
+    except InvalidParameterSetting as e:
+        print(e)
+    try:
+        _ = KmeansCluster(10, 10, covariance_mode="none")
+    except InvalidParameterSetting as e:
+        print(e)
+    try:
+        _ = KmeansCluster(10, 10, covariance_mode="foofoo")
+    except InvalidParameterSetting as e:
+        print(e)
+
 
