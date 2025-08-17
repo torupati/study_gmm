@@ -6,6 +6,9 @@ readme = "README.md"
 requires-python = ">=3.9,<3.13" # Add this line
 packages = [ {include = "study_gmm", from = "."} ]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
 numpy = "^1.25.2"
